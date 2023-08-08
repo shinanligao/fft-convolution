@@ -237,7 +237,50 @@ impl Convolution for FFTConvolver {
     }
 
     fn update(&mut self, response: &[Sample]) {
-        *self = Self::init(response, self.block_size);
+        let new_ir_len = response.len();
+
+        if new_ir_len > self.ir_len {
+            return;
+        }
+
+        if self.ir_len == 0 {
+            return;
+        }
+
+        self.fft_buffer.fill(0.);
+        self.conv.fill(Complex::new(0., 0.));
+        self.pre_multiplied.fill(Complex::new(0., 0.));
+        self.overlap.fill(0.);
+
+        self.active_seg_count = ((new_ir_len as f64 / self.block_size as f64).ceil()) as usize;
+
+        // Prepare IR
+        for i in 0..self.active_seg_count {
+            let segment = &mut self.segments_ir[i];
+            let remaining = new_ir_len - (i * self.block_size);
+            let size_copy = if remaining >= self.block_size {
+                self.block_size
+            } else {
+                remaining
+            };
+            copy_and_pad(
+                &mut self.fft_buffer,
+                &response[i * self.block_size..],
+                size_copy,
+            );
+            self.fft.forward(&mut self.fft_buffer, segment).unwrap();
+        }
+
+        // Clear remaining segments
+        for i in self.active_seg_count..self.seg_count {
+            self.segments_ir[i].fill(Complex::new(0., 0.));
+        }
+
+        self.input_buffer.fill(0.);
+        self.input_buffer_fill = 0;
+
+        // Reset current position
+        self.current = 0;
     }
 
     fn process(&mut self, input: &[Sample], output: &mut [Sample]) {
