@@ -52,6 +52,16 @@ pub struct Fft {
     fft_inverse: Arc<dyn ComplexToReal<f32>>,
 }
 
+impl Default for Fft {
+    fn default() -> Self {
+        let mut planner = RealFftPlanner::<f32>::new();
+        Self {
+            fft_forward: planner.plan_fft_forward(0),
+            fft_inverse: planner.plan_fft_inverse(0),
+        }
+    }
+}
+
 impl std::fmt::Debug for Fft {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "")
@@ -59,14 +69,6 @@ impl std::fmt::Debug for Fft {
 }
 
 impl Fft {
-    pub fn default() -> Self {
-        let mut planner = RealFftPlanner::<f32>::new();
-        Self {
-            fft_forward: planner.plan_fft_forward(0),
-            fft_inverse: planner.plan_fft_inverse(0),
-        }
-    }
-
     pub fn init(&mut self, length: usize) {
         let mut planner = RealFftPlanner::<f32>::new();
         self.fft_forward = planner.plan_fft_forward(length);
@@ -139,7 +141,7 @@ pub fn sum(result: &mut [f32], a: &[f32], b: &[f32]) {
         result[i] = a[i] + b[i];
     }
 }
-
+#[derive(Default)]
 struct FFTConvolver {
     ir_len: usize,
     block_size: usize,
@@ -361,6 +363,157 @@ impl Convolution for FFTConvolver {
                     self.active_seg_count - 1
                 };
             }
+            processed += processing;
+        }
+    }
+}
+
+struct TwoStageFFTConvolver {
+    head_convolver: FFTConvolver,
+    tail_convolver0: FFTConvolver,
+    tail_output0: Vec<Sample>,
+    tail_precalculated0: Vec<Sample>,
+    tail_convolver: FFTConvolver,
+    tail_output: Vec<Sample>,
+    tail_precalculated: Vec<Sample>,
+    tail_input: Vec<Sample>,
+    tail_input_fill: usize,
+    precalculated_pos: usize,
+}
+
+const HEAD_BLOCK_SIZE: usize = 128;
+const TAIL_BLOCK_SIZE: usize = 1024;
+
+impl Convolution for TwoStageFFTConvolver {
+    fn init(impulse_response: &[Sample], _block_size: usize) -> Self {
+        let head_block_size = HEAD_BLOCK_SIZE;
+        let tail_block_size = TAIL_BLOCK_SIZE;
+
+        let head_ir_len = std::cmp::min(impulse_response.len(), tail_block_size);
+        let head_convolver = FFTConvolver::init(&impulse_response[0..head_ir_len], head_block_size);
+
+        let tail_convolver0 = (impulse_response.len() > tail_block_size)
+            .then(|| {
+                let tail_ir_len =
+                    std::cmp::min(impulse_response.len() - tail_block_size, tail_block_size);
+                FFTConvolver::init(
+                    &impulse_response[tail_block_size..tail_block_size + tail_ir_len],
+                    head_block_size,
+                )
+            })
+            .unwrap_or_default();
+
+        let tail_output0 = vec![0.0; tail_block_size];
+        let tail_precalculated0 = vec![0.0; tail_block_size];
+
+        let tail_convolver = (impulse_response.len() > 2 * tail_block_size)
+            .then(|| {
+                let tail_ir_len = impulse_response.len() - 2 * tail_block_size;
+                FFTConvolver::init(
+                    &impulse_response[2 * tail_block_size..2 * tail_block_size + tail_ir_len],
+                    tail_block_size,
+                )
+            })
+            .unwrap_or_default();
+
+        let tail_output = vec![0.0; tail_block_size];
+        let tail_precalculated = vec![0.0; tail_block_size];
+        let tail_input = vec![0.0; tail_block_size];
+        let tail_input_fill = 0;
+        let precalculated_pos = 0;
+
+        TwoStageFFTConvolver {
+            head_convolver,
+            tail_convolver0,
+            tail_output0,
+            tail_precalculated0,
+            tail_convolver,
+            tail_output,
+            tail_precalculated,
+            tail_input,
+            tail_input_fill,
+            precalculated_pos,
+        }
+    }
+
+    fn update(&mut self, _response: &[Sample]) {}
+
+    fn process(&mut self, input: &[Sample], output: &mut [Sample]) {
+        // Head
+        self.head_convolver.process(input, output);
+
+        // Tail
+        if self.tail_input.is_empty() {
+            return;
+        }
+
+        let len = input.len();
+        let mut processed = 0;
+
+        while processed < len {
+            let remaining = len - processed;
+            let processing = std::cmp::min(
+                remaining,
+                HEAD_BLOCK_SIZE - (self.tail_input_fill % HEAD_BLOCK_SIZE),
+            );
+
+            // Sum head and tail
+            let sum_begin = processed;
+            let sum_end = processed + processing;
+
+            // Sum: 1st tail block
+            if self.tail_precalculated0.len() > 0 {
+                let mut precalculated_pos = self.precalculated_pos;
+                for i in sum_begin..sum_end {
+                    output[i] += self.tail_precalculated0[precalculated_pos];
+                    precalculated_pos += 1;
+                }
+            }
+
+            // Sum: 2nd-Nth tail block
+            if self.tail_precalculated.len() > 0 {
+                let mut precalculated_pos = self.precalculated_pos;
+                for i in sum_begin..sum_end {
+                    output[i] += self.tail_precalculated[precalculated_pos];
+                    precalculated_pos += 1;
+                }
+            }
+
+            self.precalculated_pos += processing;
+
+            // Fill input buffer for tail convolution
+            self.tail_input[self.tail_input_fill..self.tail_input_fill + processing]
+                .copy_from_slice(&input[processed..processed + processing]);
+            self.tail_input_fill += processing;
+
+            // Convolution: 1st tail block
+            if self.tail_precalculated0.len() > 0 && self.tail_input_fill % HEAD_BLOCK_SIZE == 0 {
+                assert!(self.tail_input_fill >= HEAD_BLOCK_SIZE);
+                let block_offset = self.tail_input_fill - HEAD_BLOCK_SIZE;
+                self.tail_convolver0.process(
+                    &self.tail_input[block_offset..block_offset + HEAD_BLOCK_SIZE],
+                    &mut self.tail_output0[block_offset..block_offset + HEAD_BLOCK_SIZE],
+                );
+                if self.tail_input_fill == TAIL_BLOCK_SIZE {
+                    std::mem::swap(&mut self.tail_precalculated0, &mut self.tail_output0);
+                }
+            }
+
+            // Convolution: 2nd-Nth tail block (might be done in some background thread)
+            if self.tail_precalculated.len() > 0
+                && self.tail_input_fill == TAIL_BLOCK_SIZE
+                && self.tail_output.len() == TAIL_BLOCK_SIZE
+            {
+                std::mem::swap(&mut self.tail_precalculated, &mut self.tail_output);
+                self.tail_convolver
+                    .process(&self.tail_input, &mut self.tail_output);
+            }
+
+            if self.tail_input_fill == TAIL_BLOCK_SIZE {
+                self.tail_input_fill = 0;
+                self.precalculated_pos = 0;
+            }
+
             processed += processing;
         }
     }
