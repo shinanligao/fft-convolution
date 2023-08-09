@@ -1,37 +1,104 @@
 // todo: use a generic floating point type
 type Sample = f32;
 
-pub trait Convolution {
+pub trait Conv: Clone {
     fn init(response: &[Sample], max_block_size: usize) -> Self;
-    fn update(&mut self, response: &[Sample]);
+    fn set_response(&mut self, response: &[Sample]);
     fn process(&mut self, input: &[Sample], output: &mut [Sample]);
 }
 
-pub struct Convolver<Processor: Convolution> {
-    processor: Processor,
+pub trait EvolveResponse {
+    fn evolve(&mut self, response: &[Sample]);
 }
 
-impl<Processor: Convolution> Convolver<Processor> {
-    pub fn new(convolver_processor: Processor) -> Self {
+pub trait SmoothConv: Conv + EvolveResponse {}
+impl<T> SmoothConv for T where T: Conv + EvolveResponse {}
+
+#[derive(Clone)]
+pub struct CrossfadeConvolver<Convolver> {
+    convolver_a: Convolver,
+    convolver_b: Convolver,
+    _crossfade_samples: usize,
+    _crossfade_counter: usize,
+}
+
+impl<T: Conv> CrossfadeConvolver<T> {
+    pub fn new(convolver: T, crossfade_samples: usize) -> Self {
         Self {
-            processor: convolver_processor,
+            convolver_a: convolver.clone(),
+            convolver_b: convolver,
+            _crossfade_samples: crossfade_samples,
+            _crossfade_counter: 0,
         }
     }
+}
 
-    pub fn set_response(&mut self, response: &[Sample]) {
-        self.processor.update(response);
+impl<Convolver: Conv> Conv for CrossfadeConvolver<Convolver> {
+    fn init(response: &[Sample], max_block_size: usize) -> Self {
+        let processor = Convolver::init(response, max_block_size);
+        Self::new(processor, 0)
     }
 
-    pub fn process(&mut self, input: &[Sample], output: &mut [Sample]) {
-        self.processor.process(input, output);
+    fn set_response(&mut self, response: &[Sample]) {
+        self.convolver_a.set_response(response);
+        self.convolver_b.set_response(response);
     }
+
+    fn process(&mut self, input: &[Sample], output: &mut [Sample]) {
+        self.convolver_a.process(input, output);
+    }
+}
+
+impl<Convolver: Conv> EvolveResponse for CrossfadeConvolver<Convolver> {
+    fn evolve(&mut self, response: &[Sample]) {
+        // TODO: crossfade and swap...
+        self.convolver_a.set_response(response);
+        self.convolver_b.set_response(response);
+    }
+}
+
+#[derive(Clone)]
+pub struct TimeVaryingConvolver {}
+
+impl Conv for TimeVaryingConvolver {
+    fn init(_response: &[Sample], _max_block_size: usize) -> Self {
+        todo!()
+    }
+
+    fn set_response(&mut self, _response: &[Sample]) {
+        todo!()
+    }
+
+    fn process(&mut self, _input: &[Sample], _output: &mut [Sample]) {
+        todo!()
+    }
+}
+
+impl EvolveResponse for TimeVaryingConvolver {
+    fn evolve(&mut self, _response: &[Sample]) {
+        todo!()
+    }
+}
+
+fn _smooth_convolvers_example() {
+    struct AudioNode<Convolver: SmoothConv> {
+        _convolver: Convolver,
+    }
+
+    let _node = AudioNode {
+        _convolver: TimeVaryingConvolver::init(&[0.0; 1024], 1024),
+    };
+
+    let _node2 = AudioNode {
+        _convolver: CrossfadeConvolver::new(FFTConvolver::init(&[0.0; 1024], 1024), 1024),
+    };
 }
 
 #[test]
-fn test_fft_convolver() {
+fn test_crossfade_convolver() {
     let mut response = [0.0; 1024];
     response[0] = 1.0;
-    let mut convolver = Convolver::new(FFTConvolver::init(&response, 1024));
+    let mut convolver = CrossfadeConvolver::new(FFTConvolver::init(&response, 1024), 1024);
     let input = vec![1.0; 1024];
     let mut output = vec![0.0; 1024];
     convolver.process(&input, &mut output);
@@ -47,6 +114,7 @@ use realfft::{ComplexToReal, FftError, RealFftPlanner, RealToComplex};
 use rustfft::num_complex::Complex;
 use std::sync::Arc;
 
+#[derive(Clone)]
 pub struct Fft {
     fft_forward: Arc<dyn RealToComplex<f32>>,
     fft_inverse: Arc<dyn ComplexToReal<f32>>,
@@ -141,7 +209,7 @@ pub fn sum(result: &mut [f32], a: &[f32], b: &[f32]) {
         result[i] = a[i] + b[i];
     }
 }
-#[derive(Default)]
+#[derive(Default, Clone)]
 struct FFTConvolver {
     ir_len: usize,
     block_size: usize,
@@ -161,7 +229,7 @@ struct FFTConvolver {
     input_buffer_fill: usize,
 }
 
-impl Convolution for FFTConvolver {
+impl Conv for FFTConvolver {
     fn init(impulse_response: &[Sample], block_size: usize) -> Self {
         // if block_size == 0 {
         //     return Err(FFTConvolverInitError::BlockSizeZero());
@@ -238,7 +306,7 @@ impl Convolution for FFTConvolver {
         }
     }
 
-    fn update(&mut self, response: &[Sample]) {
+    fn set_response(&mut self, response: &[Sample]) {
         let new_ir_len = response.len();
 
         if new_ir_len > self.ir_len {
@@ -368,6 +436,7 @@ impl Convolution for FFTConvolver {
     }
 }
 
+#[derive(Clone)]
 struct TwoStageFFTConvolver {
     head_convolver: FFTConvolver,
     tail_convolver0: FFTConvolver,
@@ -384,7 +453,7 @@ struct TwoStageFFTConvolver {
 const HEAD_BLOCK_SIZE: usize = 128;
 const TAIL_BLOCK_SIZE: usize = 1024;
 
-impl Convolution for TwoStageFFTConvolver {
+impl Conv for TwoStageFFTConvolver {
     fn init(impulse_response: &[Sample], _block_size: usize) -> Self {
         let head_block_size = HEAD_BLOCK_SIZE;
         let tail_block_size = TAIL_BLOCK_SIZE;
@@ -436,7 +505,9 @@ impl Convolution for TwoStageFFTConvolver {
         }
     }
 
-    fn update(&mut self, _response: &[Sample]) {}
+    fn set_response(&mut self, response: &[Sample]) {
+        *self = Self::init(response, 0);
+    }
 
     fn process(&mut self, input: &[Sample], output: &mut [Sample]) {
         // Head
