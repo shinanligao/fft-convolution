@@ -1,4 +1,4 @@
-use crate::{Conv, EvolveResponse, Sample};
+use crate::{Conv, Sample, SmoothConvUpdate};
 
 #[derive(Clone)]
 pub struct TimeVaryingConvolver {}
@@ -17,8 +17,9 @@ impl Conv for TimeVaryingConvolver {
     }
 }
 
-impl EvolveResponse for TimeVaryingConvolver {
+impl SmoothConvUpdate for TimeVaryingConvolver {
     fn evolve(&mut self, _response: &[Sample]) {
+        // set_response is already smooth
         self.set_response(_response);
     }
 }

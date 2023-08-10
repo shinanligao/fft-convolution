@@ -11,19 +11,16 @@ pub trait Conv: Clone {
     fn process(&mut self, input: &[Sample], output: &mut [Sample]);
 }
 
-pub trait EvolveResponse {
+pub trait SmoothConvUpdate: Conv {
     fn evolve(&mut self, response: &[Sample]);
 }
-
-pub trait SmoothConv: Conv + EvolveResponse {}
-impl<T> SmoothConv for T where T: Conv + EvolveResponse {}
 
 fn _smooth_convolvers_example() {
     use crate::{
         crossfade_convolver::CrossfadeConvolver, fft_convolver::FFTConvolver,
         time_varying_convolver::TimeVaryingConvolver,
     };
-    struct AudioNode<Convolver: SmoothConv> {
+    struct AudioNode<Convolver: SmoothConvUpdate> {
         _convolver: Convolver,
     }
 

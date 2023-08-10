@@ -1,4 +1,4 @@
-use crate::{Conv, EvolveResponse, Sample};
+use crate::{Conv, Sample, SmoothConvUpdate};
 
 #[derive(Clone)]
 pub struct CrossfadeConvolver<Convolver> {
@@ -19,6 +19,130 @@ impl<T: Conv> CrossfadeConvolver<T> {
     }
 }
 
+pub enum Mixer {
+    Linear,
+    SquareRoot,
+    Cosine,
+    RaisedCosine,
+}
+
+impl Mixer {
+    pub fn mix(&self, a: f32, b: f32, value: f32) -> f32 {
+        const PI_HALF: f32 = std::f32::consts::PI * 0.5;
+
+        match self {
+            Self::Linear => a * (1.0 - value) + b * value,
+            Self::SquareRoot => {
+                let gain1 = (1.0 - value).sqrt();
+                let gain2 = value.sqrt();
+                a * gain1 + b * gain2
+            }
+            Self::Cosine => {
+                let rad = PI_HALF * value;
+                let gain1 = rad.cos();
+                let gain2 = rad.sin();
+                a * gain1 + b * gain2
+            }
+            Self::RaisedCosine => {
+                let rad = PI_HALF * value;
+                let gain1 = rad.cos().powi(2);
+                let gain2 = 1.0 - gain1;
+                a * gain1 + b * gain2
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum Target {
+    A,
+    B,
+}
+
+enum FadingState {
+    Reached(Target),
+    Approaching(Target),
+}
+
+impl FadingState {
+    fn target(&self) -> Target {
+        match self {
+            Self::Reached(target) => *target,
+            Self::Approaching(target) => *target,
+        }
+    }
+}
+
+pub struct Crossfader {
+    mixer: Mixer,
+    samples: usize,
+    counter: usize,
+    step: f32,
+    value: f32,
+    fading_state: FadingState,
+}
+
+impl Crossfader {
+    fn new(mixer: Mixer, samples: usize) -> Self {
+        Self {
+            mixer,
+            samples,
+            counter: 0,
+            step: 1.0 / samples as f32,
+            value: 0.0,
+            fading_state: FadingState::Reached(Target::A),
+        }
+    }
+
+    fn fade_into(&mut self, target: Target) {
+        let current_target = self.fading_state.target();
+        if current_target == target {
+            return;
+        }
+
+        self.step = -self.step;
+        self.fading_state = FadingState::Approaching(target);
+
+        match self.fading_state {
+            FadingState::Reached(_) => {
+                self.counter = 0;
+            }
+            FadingState::Approaching(_) => {
+                self.counter = self.samples - self.counter;
+            }
+        }
+    }
+
+    fn mix(&mut self, a: f32, b: f32) -> f32 {
+        match self.fading_state {
+            FadingState::Reached(target) => match target {
+                Target::A => a,
+                Target::B => b,
+            },
+            FadingState::Approaching(target) => {
+                self.value += self.step;
+                self.counter += 1;
+
+                if self.counter == self.samples {
+                    self.fading_state = FadingState::Reached(target);
+                    match target {
+                        Target::A => {
+                            self.value = 0.0;
+                            return a;
+                        }
+                        Target::B => {
+                            self.value = 1.0;
+                            return b;
+                        }
+                    }
+                }
+
+                self.mixer.mix(a, b, self.value)
+            }
+        }
+    }
+}
+
 impl<Convolver: Conv> Conv for CrossfadeConvolver<Convolver> {
     fn init(response: &[Sample], max_block_size: usize) -> Self {
         let processor = Convolver::init(response, max_block_size);
@@ -35,7 +159,7 @@ impl<Convolver: Conv> Conv for CrossfadeConvolver<Convolver> {
     }
 }
 
-impl<Convolver: Conv> EvolveResponse for CrossfadeConvolver<Convolver> {
+impl<Convolver: Conv> SmoothConvUpdate for CrossfadeConvolver<Convolver> {
     fn evolve(&mut self, response: &[Sample]) {
         // TODO: crossfade and swap...
         self.convolver_a.set_response(response);
