@@ -19,37 +19,44 @@ impl<T: Conv> CrossfadeConvolver<T> {
     }
 }
 
-pub enum Mixer {
-    Linear,
-    SquareRoot,
-    Cosine,
-    RaisedCosine,
+pub trait Mixer {
+    fn mix(&self, a: f32, b: f32, value: f32) -> f32;
 }
 
-impl Mixer {
-    pub fn mix(&self, a: f32, b: f32, value: f32) -> f32 {
-        const PI_HALF: f32 = std::f32::consts::PI * 0.5;
+struct LinearMixer;
+impl Mixer for LinearMixer {
+    fn mix(&self, a: f32, b: f32, value: f32) -> f32 {
+        a * (1.0 - value) + b * value
+    }
+}
 
-        match self {
-            Self::Linear => a * (1.0 - value) + b * value,
-            Self::SquareRoot => {
-                let gain1 = (1.0 - value).sqrt();
-                let gain2 = value.sqrt();
-                a * gain1 + b * gain2
-            }
-            Self::Cosine => {
-                let rad = PI_HALF * value;
-                let gain1 = rad.cos();
-                let gain2 = rad.sin();
-                a * gain1 + b * gain2
-            }
-            Self::RaisedCosine => {
-                let rad = PI_HALF * value;
-                let gain1 = rad.cos().powi(2);
-                let gain2 = 1.0 - gain1;
-                a * gain1 + b * gain2
-            }
-        }
+struct SquareRootMixer;
+impl Mixer for SquareRootMixer {
+    fn mix(&self, a: f32, b: f32, value: f32) -> f32 {
+        let gain1 = (1.0 - value).sqrt();
+        let gain2 = value.sqrt();
+        a * gain1 + b * gain2
+    }
+}
+const PI_HALF: f32 = std::f32::consts::PI * 0.5;
+
+struct CosineMixer;
+impl Mixer for CosineMixer {
+    fn mix(&self, a: f32, b: f32, value: f32) -> f32 {
+        let rad = PI_HALF * value;
+        let gain1 = rad.cos();
+        let gain2 = rad.sin();
+        a * gain1 + b * gain2
+    }
+}
+
+struct RaisedCosineMixer;
+impl Mixer for RaisedCosineMixer {
+    fn mix(&self, a: f32, b: f32, value: f32) -> f32 {
+        let rad = PI_HALF * value;
+        let gain1 = rad.cos().powi(2);
+        let gain2 = 1.0 - gain1;
+        a * gain1 + b * gain2
     }
 }
 
@@ -73,8 +80,8 @@ impl FadingState {
     }
 }
 
-pub struct Crossfader {
-    mixer: Mixer,
+pub struct Crossfader<T: Mixer> {
+    mixer: T,
     samples: usize,
     counter: usize,
     step: f32,
@@ -82,8 +89,8 @@ pub struct Crossfader {
     fading_state: FadingState,
 }
 
-impl Crossfader {
-    fn new(mixer: Mixer, samples: usize) -> Self {
+impl<T: Mixer> Crossfader<T> {
+    fn new(mixer: T, samples: usize) -> Self {
         Self {
             mixer,
             samples,
