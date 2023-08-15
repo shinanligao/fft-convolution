@@ -223,9 +223,6 @@ impl<T: Mixer> Crossfader<T> {
             return;
         }
 
-        self.mix_value_step = -self.mix_value_step;
-        self.fading_state = FadingState::Approaching(target);
-
         match self.fading_state {
             FadingState::Reached(_) => {
                 self.counter = -self.hold_samples;
@@ -236,6 +233,9 @@ impl<T: Mixer> Crossfader<T> {
                 self.counter = self.fading_samples - self.counter;
             }
         }
+
+        self.mix_value_step = -self.mix_value_step;
+        self.fading_state = FadingState::Approaching(target);
     }
 
     fn mix(&mut self, a: Sample, b: Sample) -> Sample {
