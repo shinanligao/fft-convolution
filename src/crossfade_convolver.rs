@@ -1,21 +1,126 @@
 use crate::{Conv, Sample, SmoothConvUpdate};
 
 #[derive(Clone)]
-pub struct CrossfadeConvolver<Convolver> {
-    convolver_a: Convolver,
-    convolver_b: Convolver,
+struct CrossfadeConvolverCore<T: Conv> {
+    convolver_a: T,
+    convolver_b: T,
+    crossfader: Crossfader<RaisedCosineMixer>,
+}
+
+#[derive(Clone)]
+pub struct CrossfadeConvolver<Convolver: Conv> {
+    core: CrossfadeConvolverCore<Convolver>,
+    buffer_a: Vec<Sample>,
+    buffer_b: Vec<Sample>,
+    pending_response: (Vec<Sample>, bool),
     _crossfade_samples: usize,
     _crossfade_counter: usize,
 }
 
 impl<T: Conv> CrossfadeConvolver<T> {
-    pub fn new(convolver: T, crossfade_samples: usize) -> Self {
+    pub fn new(
+        convolver: T,
+        max_response_length: usize,
+        max_buffer_size: usize,
+        crossfade_samples: usize,
+    ) -> Self {
+        let response = vec![0.0; max_response_length];
         Self {
-            convolver_a: convolver.clone(),
-            convolver_b: convolver,
+            core: CrossfadeConvolverCore {
+                convolver_a: convolver.clone(),
+                convolver_b: convolver,
+                crossfader: Crossfader::new(RaisedCosineMixer, crossfade_samples),
+            },
+            buffer_a: vec![0.0; max_buffer_size],
+            buffer_b: vec![0.0; max_buffer_size],
+            pending_response: (response, false),
             _crossfade_samples: crossfade_samples,
             _crossfade_counter: 0,
         }
+    }
+}
+
+impl<Convolver: Conv> Conv for CrossfadeConvolver<Convolver> {
+    fn init(response: &[Sample], max_block_size: usize) -> Self {
+        let convolver = Convolver::init(response, max_block_size);
+        Self::new(convolver, response.len(), max_block_size, response.len())
+    }
+
+    fn set_response(&mut self, response: &[Sample]) {
+        self.core.convolver_a.set_response(response);
+        self.core.convolver_b.set_response(response);
+    }
+
+    fn process(&mut self, input: &[Sample], output: &mut [Sample]) {
+        if !self.is_crossfading() && self.pending_response.1 {
+            swap(&mut self.core, &self.pending_response.0);
+            self.pending_response.1 = false;
+        }
+
+        self.core.convolver_a.process(input, &mut self.buffer_a);
+        self.core.convolver_b.process(input, &mut self.buffer_b);
+
+        for i in 0..output.len() {
+            output[i] = self.core.crossfader.mix(self.buffer_a[i], self.buffer_b[i]);
+        }
+    }
+}
+
+impl<Convolver: Conv> SmoothConvUpdate for CrossfadeConvolver<Convolver> {
+    fn evolve(&mut self, response: &[Sample]) {
+        if !self.is_crossfading() {
+            swap(&mut self.core, response);
+            self.pending_response.1 = false;
+            return;
+        }
+
+        let response_len = response.len();
+        assert!(response_len <= self.pending_response.0.len());
+
+        self.pending_response.0[..response_len].copy_from_slice(response);
+        self.pending_response.0[response_len..].fill(0.0);
+        self.pending_response.1 = true;
+    }
+}
+
+impl<Convolver: Conv> CrossfadeConvolver<Convolver> {
+    pub fn is_crossfading(&self) -> bool {
+        match self.core.crossfader.fading_state {
+            FadingState::Approaching(_) => true,
+            FadingState::Reached(_) => false,
+        }
+    }
+}
+
+fn swap<T: Conv>(core: &mut CrossfadeConvolverCore<T>, response: &[Sample]) {
+    match core.crossfader.fading_state.target() {
+        Target::A => {
+            core.convolver_b.set_response(&response);
+            core.crossfader.fade_into(Target::B);
+        }
+        Target::B => {
+            core.convolver_a.set_response(&response);
+            core.crossfader.fade_into(Target::A);
+        }
+    }
+}
+
+#[test]
+fn test_crossfade_convolver() {
+    let mut response = [0.0; 1024];
+    response[0] = 1.0;
+    let mut convolver = CrossfadeConvolver::new(
+        crate::fft_convolver::FFTConvolver::init(&response, 1024),
+        1024,
+        1024,
+        1024,
+    );
+    let input = vec![1.0; 1024];
+    let mut output = vec![0.0; 1024];
+    convolver.process(&input, &mut output);
+
+    for i in 0..1024 {
+        assert!((output[i] - 1.0).abs() < 1e-6);
     }
 }
 
@@ -50,6 +155,7 @@ impl Mixer for CosineMixer {
     }
 }
 
+#[derive(Clone)]
 struct RaisedCosineMixer;
 impl Mixer for RaisedCosineMixer {
     fn mix(&self, a: f32, b: f32, value: f32) -> f32 {
@@ -66,6 +172,7 @@ enum Target {
     B,
 }
 
+#[derive(Clone, Copy)]
 enum FadingState {
     Reached(Target),
     Approaching(Target),
@@ -80,6 +187,7 @@ impl FadingState {
     }
 }
 
+#[derive(Clone)]
 pub struct Crossfader<T: Mixer> {
     mixer: T,
     samples: usize,
@@ -147,46 +255,5 @@ impl<T: Mixer> Crossfader<T> {
                 self.mixer.mix(a, b, self.value)
             }
         }
-    }
-}
-
-impl<Convolver: Conv> Conv for CrossfadeConvolver<Convolver> {
-    fn init(response: &[Sample], max_block_size: usize) -> Self {
-        let processor = Convolver::init(response, max_block_size);
-        Self::new(processor, 0)
-    }
-
-    fn set_response(&mut self, response: &[Sample]) {
-        self.convolver_a.set_response(response);
-        self.convolver_b.set_response(response);
-    }
-
-    fn process(&mut self, input: &[Sample], output: &mut [Sample]) {
-        self.convolver_a.process(input, output);
-    }
-}
-
-impl<Convolver: Conv> SmoothConvUpdate for CrossfadeConvolver<Convolver> {
-    fn evolve(&mut self, response: &[Sample]) {
-        // TODO: crossfade and swap...
-        self.convolver_a.set_response(response);
-        self.convolver_b.set_response(response);
-    }
-}
-
-#[test]
-fn test_crossfade_convolver() {
-    let mut response = [0.0; 1024];
-    response[0] = 1.0;
-    let mut convolver = CrossfadeConvolver::new(
-        crate::fft_convolver::FFTConvolver::init(&response, 1024),
-        1024,
-    );
-    let input = vec![1.0; 1024];
-    let mut output = vec![0.0; 1024];
-    convolver.process(&input, &mut output);
-
-    for i in 0..1024 {
-        assert!((output[i] - 1.0).abs() < 1e-6);
     }
 }
