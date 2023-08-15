@@ -149,7 +149,7 @@ impl Mixer for SquareRootMixer {
         a * gain1 + b * gain2
     }
 }
-const PI_HALF: Sample = std::Sample::consts::PI * 0.5;
+const PI_HALF: Sample = std::f32::consts::PI * 0.5;
 
 struct CosineMixer;
 impl Mixer for CosineMixer {
@@ -226,16 +226,21 @@ impl<T: Mixer> Crossfader<T> {
         match self.fading_state {
             FadingState::Reached(_) => {
                 self.counter = -self.hold_samples;
+                self.fading_state = FadingState::Approaching(target);
+                self.mix_value_step = -self.mix_value_step;
             }
             FadingState::Approaching(_) => {
                 // note: should never be the case in the context of the crossfade convolver,
                 // which will swap responses only after a target is reached
-                self.counter = self.fading_samples - self.counter;
+                if self.counter >= 0 {
+                    self.counter = self.fading_samples - self.counter;
+                    self.fading_state = FadingState::Approaching(target);
+                    self.mix_value_step = -self.mix_value_step;
+                } else {
+                    self.fading_state = FadingState::Reached(target);
+                }
             }
         }
-
-        self.mix_value_step = -self.mix_value_step;
-        self.fading_state = FadingState::Approaching(target);
     }
 
     fn mix(&mut self, a: Sample, b: Sample) -> Sample {
