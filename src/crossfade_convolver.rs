@@ -30,7 +30,11 @@ impl<T: Conv> CrossfadeConvolver<T> {
             core: CrossfadeConvolverCore {
                 convolver_a: convolver.clone(),
                 convolver_b: convolver,
-                crossfader: Crossfader::new(RaisedCosineMixer, crossfade_samples),
+                crossfader: Crossfader::new(
+                    RaisedCosineMixer,
+                    crossfade_samples,
+                    max_response_length,
+                ),
             },
             buffer_a: vec![0.0; max_buffer_size],
             buffer_b: vec![0.0; max_buffer_size],
@@ -192,21 +196,23 @@ impl FadingState {
 #[derive(Clone)]
 pub struct Crossfader<T: Mixer> {
     mixer: T,
-    samples: usize,
-    counter: usize,
-    step: f32,
-    value: f32,
+    fading_samples: i64,
+    hold_samples: i64,
+    counter: i64,
+    mix_value_step: f32,
+    mix_value: f32,
     fading_state: FadingState,
 }
 
 impl<T: Mixer> Crossfader<T> {
-    fn new(mixer: T, samples: usize) -> Self {
+    fn new(mixer: T, fading_samples: usize, hold_samples: usize) -> Self {
         Self {
             mixer,
-            samples,
+            fading_samples: fading_samples as i64,
+            hold_samples: hold_samples as i64,
             counter: 0,
-            step: 1.0 / samples as f32,
-            value: 0.0,
+            mix_value_step: 1.0 / fading_samples as f32,
+            mix_value: 0.0,
             fading_state: FadingState::Reached(Target::A),
         }
     }
@@ -217,15 +223,17 @@ impl<T: Mixer> Crossfader<T> {
             return;
         }
 
-        self.step = -self.step;
+        self.mix_value_step = -self.mix_value_step;
         self.fading_state = FadingState::Approaching(target);
 
         match self.fading_state {
             FadingState::Reached(_) => {
-                self.counter = 0;
+                self.counter = -self.hold_samples;
             }
             FadingState::Approaching(_) => {
-                self.counter = self.samples - self.counter;
+                // note: should never be the case in the context of the crossfade convolver,
+                // which will swap responses only after a target is reached
+                self.counter = self.fading_samples - self.counter;
             }
         }
     }
@@ -233,28 +241,37 @@ impl<T: Mixer> Crossfader<T> {
     fn mix(&mut self, a: f32, b: f32) -> f32 {
         match self.fading_state {
             FadingState::Reached(target) => match target {
-                Target::A => a,
-                Target::B => b,
+                Target::A => return a,
+                Target::B => return b,
             },
             FadingState::Approaching(target) => {
-                self.value += self.step;
                 self.counter += 1;
 
-                if self.counter == self.samples {
+                if self.counter < 0 {
+                    // holding the previous target
+                    match target {
+                        Target::A => return b,
+                        Target::B => return a,
+                    }
+                }
+
+                self.mix_value += self.mix_value_step;
+
+                if self.counter == self.fading_samples {
                     self.fading_state = FadingState::Reached(target);
                     match target {
                         Target::A => {
-                            self.value = 0.0;
+                            self.mix_value = 0.0;
                             return a;
                         }
                         Target::B => {
-                            self.value = 1.0;
+                            self.mix_value = 1.0;
                             return b;
                         }
                     }
                 }
 
-                self.mixer.mix(a, b, self.value)
+                self.mixer.mix(a, b, self.mix_value)
             }
         }
     }
