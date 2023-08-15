@@ -12,7 +12,7 @@ pub struct CrossfadeConvolver<Convolver: Conv> {
     core: CrossfadeConvolverCore<Convolver>,
     buffer_a: Vec<Sample>,
     buffer_b: Vec<Sample>,
-    stored_response: Vec<f32>,
+    stored_response: Vec<Sample>,
     response_pending: bool,
     _crossfade_samples: usize,
     _crossfade_counter: usize,
@@ -131,29 +131,29 @@ fn test_crossfade_convolver() {
 }
 
 pub trait Mixer {
-    fn mix(&self, a: f32, b: f32, value: f32) -> f32;
+    fn mix(&self, a: Sample, b: Sample, value: Sample) -> Sample;
 }
 
 struct LinearMixer;
 impl Mixer for LinearMixer {
-    fn mix(&self, a: f32, b: f32, value: f32) -> f32 {
+    fn mix(&self, a: Sample, b: Sample, value: Sample) -> Sample {
         a * (1.0 - value) + b * value
     }
 }
 
 struct SquareRootMixer;
 impl Mixer for SquareRootMixer {
-    fn mix(&self, a: f32, b: f32, value: f32) -> f32 {
+    fn mix(&self, a: Sample, b: Sample, value: Sample) -> Sample {
         let gain1 = (1.0 - value).sqrt();
         let gain2 = value.sqrt();
         a * gain1 + b * gain2
     }
 }
-const PI_HALF: f32 = std::f32::consts::PI * 0.5;
+const PI_HALF: Sample = std::Sample::consts::PI * 0.5;
 
 struct CosineMixer;
 impl Mixer for CosineMixer {
-    fn mix(&self, a: f32, b: f32, value: f32) -> f32 {
+    fn mix(&self, a: Sample, b: Sample, value: Sample) -> Sample {
         let rad = PI_HALF * value;
         let gain1 = rad.cos();
         let gain2 = rad.sin();
@@ -164,7 +164,7 @@ impl Mixer for CosineMixer {
 #[derive(Clone)]
 struct RaisedCosineMixer;
 impl Mixer for RaisedCosineMixer {
-    fn mix(&self, a: f32, b: f32, value: f32) -> f32 {
+    fn mix(&self, a: Sample, b: Sample, value: Sample) -> Sample {
         let rad = PI_HALF * value;
         let gain1 = rad.cos().powi(2);
         let gain2 = 1.0 - gain1;
@@ -199,8 +199,8 @@ pub struct Crossfader<T: Mixer> {
     fading_samples: i64,
     hold_samples: i64,
     counter: i64,
-    mix_value_step: f32,
-    mix_value: f32,
+    mix_value_step: Sample,
+    mix_value: Sample,
     fading_state: FadingState,
 }
 
@@ -211,7 +211,7 @@ impl<T: Mixer> Crossfader<T> {
             fading_samples: fading_samples as i64,
             hold_samples: hold_samples as i64,
             counter: 0,
-            mix_value_step: 1.0 / fading_samples as f32,
+            mix_value_step: 1.0 / fading_samples as Sample,
             mix_value: 0.0,
             fading_state: FadingState::Reached(Target::A),
         }
@@ -238,7 +238,7 @@ impl<T: Mixer> Crossfader<T> {
         }
     }
 
-    fn mix(&mut self, a: f32, b: f32) -> f32 {
+    fn mix(&mut self, a: Sample, b: Sample) -> Sample {
         match self.fading_state {
             FadingState::Reached(target) => match target {
                 Target::A => return a,

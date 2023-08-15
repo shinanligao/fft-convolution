@@ -6,7 +6,6 @@ pub mod time_varying_convolver;
 pub type Sample = f32;
 
 pub trait Conv: Clone {
-    // TODO: max_block_size is fft_convolvers specific (?)
     fn init(response: &[Sample], max_block_size: usize) -> Self;
     fn set_response(&mut self, response: &[Sample]);
     fn process(&mut self, input: &[Sample], output: &mut [Sample]);
