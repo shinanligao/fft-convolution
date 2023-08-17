@@ -1,24 +1,22 @@
-use crate::{Conv, Sample, SmoothConvUpdate};
+use crate::{Convolution, Sample};
 
 #[derive(Clone)]
-struct CrossfadeConvolverCore<T: Conv> {
+struct CrossfadeConvolverCore<T: Convolution> {
     convolver_a: T,
     convolver_b: T,
     crossfader: Crossfader<RaisedCosineMixer>,
 }
 
 #[derive(Clone)]
-pub struct CrossfadeConvolver<Convolver: Conv> {
+pub struct CrossfadeConvolver<Convolver: Convolution> {
     core: CrossfadeConvolverCore<Convolver>,
     buffer_a: Vec<Sample>,
     buffer_b: Vec<Sample>,
     stored_response: Vec<Sample>,
     response_pending: bool,
-    _crossfade_samples: usize,
-    _crossfade_counter: usize,
 }
 
-impl<T: Conv> CrossfadeConvolver<T> {
+impl<T: Convolution> CrossfadeConvolver<T> {
     pub fn new(
         convolver: T,
         max_response_length: usize,
@@ -40,21 +38,29 @@ impl<T: Conv> CrossfadeConvolver<T> {
             buffer_b: vec![0.0; max_buffer_size],
             stored_response,
             response_pending: false,
-            _crossfade_samples: crossfade_samples,
-            _crossfade_counter: 0,
         }
     }
 }
 
-impl<Convolver: Conv> Conv for CrossfadeConvolver<Convolver> {
+impl<Convolver: Convolution> Convolution for CrossfadeConvolver<Convolver> {
     fn init(response: &[Sample], max_block_size: usize) -> Self {
         let convolver = Convolver::init(response, max_block_size);
         Self::new(convolver, response.len(), max_block_size, response.len())
     }
 
-    fn set_response(&mut self, response: &[Sample]) {
-        self.core.convolver_a.set_response(response);
-        self.core.convolver_b.set_response(response);
+    fn update(&mut self, response: &[Sample]) {
+        if !self.is_crossfading() {
+            swap(&mut self.core, response);
+            self.response_pending = false;
+            return;
+        }
+
+        let response_len = response.len();
+        assert!(response_len <= self.stored_response.len());
+
+        self.stored_response[..response_len].copy_from_slice(response);
+        self.stored_response[response_len..].fill(0.0);
+        self.response_pending = true;
     }
 
     fn process(&mut self, input: &[Sample], output: &mut [Sample]) {
@@ -72,24 +78,7 @@ impl<Convolver: Conv> Conv for CrossfadeConvolver<Convolver> {
     }
 }
 
-impl<Convolver: Conv> SmoothConvUpdate for CrossfadeConvolver<Convolver> {
-    fn evolve(&mut self, response: &[Sample]) {
-        if !self.is_crossfading() {
-            swap(&mut self.core, response);
-            self.response_pending = false;
-            return;
-        }
-
-        let response_len = response.len();
-        assert!(response_len <= self.stored_response.len());
-
-        self.stored_response[..response_len].copy_from_slice(response);
-        self.stored_response[response_len..].fill(0.0);
-        self.response_pending = true;
-    }
-}
-
-impl<Convolver: Conv> CrossfadeConvolver<Convolver> {
+impl<Convolver: Convolution> CrossfadeConvolver<Convolver> {
     pub fn is_crossfading(&self) -> bool {
         match self.core.crossfader.fading_state {
             FadingState::Approaching(_) => true,
@@ -98,14 +87,14 @@ impl<Convolver: Conv> CrossfadeConvolver<Convolver> {
     }
 }
 
-fn swap<T: Conv>(core: &mut CrossfadeConvolverCore<T>, response: &[Sample]) {
+fn swap<T: Convolution>(core: &mut CrossfadeConvolverCore<T>, response: &[Sample]) {
     match core.crossfader.fading_state.target() {
         Target::A => {
-            core.convolver_b.set_response(response);
+            core.convolver_b.update(response);
             core.crossfader.fade_into(Target::B);
         }
         Target::B => {
-            core.convolver_a.set_response(response);
+            core.convolver_a.update(response);
             core.crossfader.fade_into(Target::A);
         }
     }

@@ -2,7 +2,7 @@ use realfft::{ComplexToReal, FftError, RealFftPlanner, RealToComplex};
 use rustfft::num_complex::Complex;
 use std::sync::Arc;
 
-use crate::{Conv, Sample};
+use crate::{Convolution, Sample};
 
 #[derive(Clone)]
 pub struct Fft {
@@ -119,17 +119,9 @@ pub struct FFTConvolver {
     input_buffer_fill: usize,
 }
 
-impl Conv for FFTConvolver {
+impl Convolution for FFTConvolver {
     fn init(impulse_response: &[Sample], block_size: usize) -> Self {
-        // if block_size == 0 {
-        //     return Err(FFTConvolverInitError::BlockSizeZero());
-        // }
-
         let ir_len = impulse_response.len();
-
-        // if ir_len == 0 {
-        //     return Ok(());
-        // }
 
         let block_size = block_size.next_power_of_two();
         let seg_size = 2 * block_size;
@@ -196,7 +188,7 @@ impl Conv for FFTConvolver {
         }
     }
 
-    fn set_response(&mut self, response: &[Sample]) {
+    fn update(&mut self, response: &[Sample]) {
         let new_ir_len = response.len();
 
         if new_ir_len > self.ir_len {
@@ -343,7 +335,7 @@ struct TwoStageFFTConvolver {
 const HEAD_BLOCK_SIZE: usize = 128;
 const TAIL_BLOCK_SIZE: usize = 1024;
 
-impl Conv for TwoStageFFTConvolver {
+impl Convolution for TwoStageFFTConvolver {
     fn init(impulse_response: &[Sample], _block_size: usize) -> Self {
         let head_block_size = HEAD_BLOCK_SIZE;
         let tail_block_size = TAIL_BLOCK_SIZE;
@@ -395,8 +387,8 @@ impl Conv for TwoStageFFTConvolver {
         }
     }
 
-    fn set_response(&mut self, response: &[Sample]) {
-        *self = Self::init(response, 0);
+    fn update(&mut self, _response: &[Sample]) {
+        todo!()
     }
 
     fn process(&mut self, input: &[Sample], output: &mut [Sample]) {
