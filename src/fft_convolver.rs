@@ -319,7 +319,7 @@ impl Convolution for FFTConvolver {
 }
 
 #[derive(Clone)]
-struct TwoStageFFTConvolver {
+pub struct TwoStageFFTConvolver {
     head_convolver: FFTConvolver,
     tail_convolver0: FFTConvolver,
     tail_output0: Vec<Sample>,
