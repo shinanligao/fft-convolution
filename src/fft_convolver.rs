@@ -122,6 +122,7 @@ pub struct FFTConvolver {
 impl Convolution for FFTConvolver {
     fn init(impulse_response: &[Sample], block_size: usize) -> Self {
         let ir_len = impulse_response.len();
+        debug_assert!(ir_len > 0);
 
         let block_size = block_size.next_power_of_two();
         let seg_size = 2 * block_size;
