@@ -123,6 +123,7 @@ pub trait Mixer {
     fn mix(&self, a: Sample, b: Sample, value: Sample) -> Sample;
 }
 
+#[allow(dead_code)]
 struct LinearMixer;
 impl Mixer for LinearMixer {
     fn mix(&self, a: Sample, b: Sample, value: Sample) -> Sample {
@@ -130,6 +131,7 @@ impl Mixer for LinearMixer {
     }
 }
 
+#[allow(dead_code)]
 struct SquareRootMixer;
 impl Mixer for SquareRootMixer {
     fn mix(&self, a: Sample, b: Sample, value: Sample) -> Sample {
@@ -140,6 +142,7 @@ impl Mixer for SquareRootMixer {
 }
 const PI_HALF: Sample = std::f32::consts::PI * 0.5;
 
+#[allow(dead_code)]
 struct CosineMixer;
 impl Mixer for CosineMixer {
     fn mix(&self, a: Sample, b: Sample, value: Sample) -> Sample {
