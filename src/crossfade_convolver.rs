@@ -244,7 +244,7 @@ impl<T: Mixer> Crossfader<T> {
             FadingState::Approaching(target) => {
                 self.counter += 1;
 
-                if self.counter < 0 {
+                if self.counter <= 0 {
                     // holding the previous target
                     match target {
                         Target::A => return b,
