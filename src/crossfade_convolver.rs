@@ -101,7 +101,7 @@ fn swap<T: Convolution>(core: &mut CrossfadeConvolverCore<T>, response: &[Sample
 }
 
 #[test]
-fn test_crossfade_convolver() {
+fn test_crossfade_convolver_passthrough() {
     let mut response = [0.0; 1024];
     response[0] = 1.0;
     let mut convolver = CrossfadeConvolver::new(
