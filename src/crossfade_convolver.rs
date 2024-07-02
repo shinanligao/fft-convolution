@@ -170,7 +170,7 @@ enum Target {
     B,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 enum FadingState {
     Reached(Target),
     Approaching(Target),
@@ -269,6 +269,43 @@ impl<T: Mixer> Crossfader<T> {
                 }
 
                 self.mixer.mix(a, b, self.mix_value)
+            }
+        }
+    }
+}
+
+#[test]
+fn test_crossfader() {
+    let hold_samples = 4;
+    let fading_samples = 4;
+    let sample_a = 1.0;
+    let sample_b = 10.0;
+    let mut crossfader =
+        Crossfader::<RaisedCosineMixer>::new(RaisedCosineMixer, fading_samples, hold_samples);
+
+    let start = |target: Target| match target {
+        Target::A => sample_b,
+        Target::B => sample_a,
+    };
+    let end = |target: Target| match target {
+        Target::A => sample_a,
+        Target::B => sample_b,
+    };
+
+    for target in [Target::B, Target::A] {
+        crossfader.fade_into(target);
+        for i in 0..hold_samples + fading_samples {
+            let mixed_value = crossfader.mix(sample_a, sample_b);
+            if i < hold_samples {
+                assert!(crossfader.fading_state == FadingState::Approaching(target));
+                assert_eq!(mixed_value, start(target));
+            } else if i < hold_samples + fading_samples - 1 {
+                assert!(crossfader.fading_state == FadingState::Approaching(target));
+                assert_ne!(mixed_value, start(target));
+                assert_ne!(mixed_value, end(target));
+            } else {
+                assert_eq!(mixed_value, end(target));
+                assert!(crossfader.fading_state == FadingState::Reached(target));
             }
         }
     }
