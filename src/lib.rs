@@ -1,5 +1,6 @@
 pub mod crossfade_convolver;
 pub mod fft_convolver;
+mod tests;
 
 // todo: use a generic floating point type
 pub type Sample = f32;
