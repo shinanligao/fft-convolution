@@ -31,7 +31,7 @@ impl<T: Convolution> CrossfadeConvolver<T> {
                 crossfader: Crossfader::new(
                     RaisedCosineMixer,
                     crossfade_samples,
-                    max_response_length,
+                    max_buffer_size.min(max_response_length),
                 ),
             },
             buffer_a: vec![0.0; max_buffer_size],
