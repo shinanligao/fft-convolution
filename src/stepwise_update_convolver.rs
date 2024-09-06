@@ -5,8 +5,8 @@ use crate::{Convolution, Sample};
 pub struct StepwiseUpdateConvolver {
     convolver: FFTConvolverOLA,
     buffer: Vec<Sample>,
-    stored_response: Vec<Sample>,
     next_response: Vec<Sample>,
+    queued_response: Vec<Sample>,
     segment_to_load: usize,
     switching: bool,
     response_pending: bool,
@@ -17,8 +17,8 @@ impl StepwiseUpdateConvolver {
         Self {
             convolver: FFTConvolverOLA::init(response, max_buffer_size, max_response_length),
             buffer: vec![0.0; max_buffer_size],
-            stored_response: vec![0.0; max_response_length],
             next_response: vec![0.0; max_response_length],
+            queued_response: vec![0.0; max_response_length],
             segment_to_load: 0,
             switching: false,
             response_pending: false,
@@ -33,29 +33,29 @@ impl Convolution for StepwiseUpdateConvolver {
 
     fn update(&mut self, response: &[Sample]) {
         let response_len = response.len();
-        assert!(response_len <= self.stored_response.len());
+        assert!(response_len <= self.next_response.len());
 
         if !self.switching {
-            copy_and_pad(&mut self.stored_response[..], response, response_len);
+            copy_and_pad(&mut self.next_response[..], response, response_len);
             self.switching = true;
             self.response_pending = false;
             return;
         }
 
-        copy_and_pad(&mut self.next_response[..], response, response_len);
+        copy_and_pad(&mut self.queued_response[..], response, response_len);
         self.response_pending = true;
     }
 
     fn process(&mut self, input: &[Sample], output: &mut [Sample]) {
         if !self.switching && self.response_pending {
-            self.stored_response = self.next_response.clone();
+            self.next_response = self.queued_response.clone();
             self.response_pending = false;
             self.switching = true;
         }
 
         if self.switching {
             self.convolver
-                .update_segment(&self.stored_response, self.segment_to_load);
+                .update_segment(&self.next_response, self.segment_to_load);
             self.segment_to_load += 1;
             if &self.segment_to_load == self.convolver.active_seg_count() {
                 self.switching = false;
