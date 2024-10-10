@@ -43,8 +43,8 @@ impl<T: Convolution> CrossfadeConvolver<T> {
 }
 
 impl<Convolver: Convolution> Convolution for CrossfadeConvolver<Convolver> {
-    fn init(response: &[Sample], max_block_size: usize) -> Self {
-        let convolver = Convolver::init(response, max_block_size);
+    fn init(response: &[Sample], max_block_size: usize, max_response_length: usize) -> Self {
+        let convolver = Convolver::init(response, max_block_size, max_response_length);
         Self::new(convolver, response.len(), max_block_size, response.len())
     }
 
@@ -105,7 +105,7 @@ fn test_crossfade_convolver_passthrough() {
     let mut response = [0.0; 1024];
     response[0] = 1.0;
     let mut convolver = CrossfadeConvolver::new(
-        crate::fft_convolver::FFTConvolver::init(&response, 1024),
+        crate::fft_convolver::FFTConvolver::init(&response, 1024, response.len()),
         1024,
         1024,
         1024,

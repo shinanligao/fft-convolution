@@ -120,8 +120,15 @@ pub struct FFTConvolver {
 }
 
 impl Convolution for FFTConvolver {
-    fn init(impulse_response: &[Sample], block_size: usize) -> Self {
-        let ir_len = impulse_response.len();
+    fn init(impulse_response: &[Sample], block_size: usize, max_response_length: usize) -> Self {
+        if max_response_length < impulse_response.len() {
+            panic!(
+                "max_response_length must be at least the length of the initial impulse response"
+            );
+        }
+        let mut padded_ir = impulse_response.to_vec();
+        padded_ir.resize(max_response_length, 0.);
+        let ir_len = padded_ir.len();
 
         let block_size = block_size.next_power_of_two();
         let seg_size = 2 * block_size;
@@ -147,11 +154,7 @@ impl Convolution for FFTConvolver {
             } else {
                 remaining
             };
-            copy_and_pad(
-                &mut fft_buffer,
-                &impulse_response[i * block_size..],
-                size_copy,
-            );
+            copy_and_pad(&mut fft_buffer, &padded_ir[i * block_size..], size_copy);
             fft.forward(&mut fft_buffer, &mut segment).unwrap();
             segments_ir.push(segment);
         }
@@ -192,7 +195,7 @@ impl Convolution for FFTConvolver {
         let new_ir_len = response.len();
 
         if new_ir_len > self.ir_len {
-            return;
+            panic!("New impulse response is longer than initialized length");
         }
 
         if self.ir_len == 0 {
@@ -322,7 +325,7 @@ impl Convolution for FFTConvolver {
 fn test_fft_convolver_passthrough() {
     let mut response = [0.0; 1024];
     response[0] = 1.0;
-    let mut convolver = FFTConvolver::init(&response, 1024);
+    let mut convolver = FFTConvolver::init(&response, 1024, response.len());
     let input = vec![1.0; 1024];
     let mut output = vec![0.0; 1024];
     convolver.process(&input, &mut output);
@@ -350,20 +353,33 @@ const HEAD_BLOCK_SIZE: usize = 128;
 const TAIL_BLOCK_SIZE: usize = 1024;
 
 impl Convolution for TwoStageFFTConvolver {
-    fn init(impulse_response: &[Sample], _block_size: usize) -> Self {
+    fn init(impulse_response: &[Sample], _block_size: usize, max_response_length: usize) -> Self {
         let head_block_size = HEAD_BLOCK_SIZE;
         let tail_block_size = TAIL_BLOCK_SIZE;
 
-        let head_ir_len = std::cmp::min(impulse_response.len(), tail_block_size);
-        let head_convolver = FFTConvolver::init(&impulse_response[0..head_ir_len], head_block_size);
+        if max_response_length < impulse_response.len() {
+            panic!(
+                "max_response_length must be at least the length of the initial impulse response"
+            );
+        }
+        let mut padded_ir = impulse_response.to_vec();
+        padded_ir.resize(max_response_length, 0.);
 
-        let tail_convolver0 = (impulse_response.len() > tail_block_size)
+        let head_ir_len = std::cmp::min(max_response_length, tail_block_size);
+        let head_convolver = FFTConvolver::init(
+            &padded_ir[0..head_ir_len],
+            head_block_size,
+            max_response_length,
+        );
+
+        let tail_convolver0 = (max_response_length > tail_block_size)
             .then(|| {
                 let tail_ir_len =
-                    std::cmp::min(impulse_response.len() - tail_block_size, tail_block_size);
+                    std::cmp::min(max_response_length - tail_block_size, tail_block_size);
                 FFTConvolver::init(
-                    &impulse_response[tail_block_size..tail_block_size + tail_ir_len],
+                    &padded_ir[tail_block_size..tail_block_size + tail_ir_len],
                     head_block_size,
+                    max_response_length,
                 )
             })
             .unwrap_or_default();
@@ -371,12 +387,13 @@ impl Convolution for TwoStageFFTConvolver {
         let tail_output0 = vec![0.0; tail_block_size];
         let tail_precalculated0 = vec![0.0; tail_block_size];
 
-        let tail_convolver = (impulse_response.len() > 2 * tail_block_size)
+        let tail_convolver = (max_response_length > 2 * tail_block_size)
             .then(|| {
-                let tail_ir_len = impulse_response.len() - 2 * tail_block_size;
+                let tail_ir_len = max_response_length - 2 * tail_block_size;
                 FFTConvolver::init(
-                    &impulse_response[2 * tail_block_size..2 * tail_block_size + tail_ir_len],
+                    &padded_ir[2 * tail_block_size..2 * tail_block_size + tail_ir_len],
                     tail_block_size,
+                    max_response_length,
                 )
             })
             .unwrap_or_default();
