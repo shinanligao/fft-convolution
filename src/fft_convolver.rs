@@ -195,7 +195,7 @@ impl Convolution for FFTConvolver {
         let new_ir_len = response.len();
 
         if new_ir_len > self.ir_len {
-            return;
+            panic!("New impulse response is longer than initialized length");
         }
 
         if self.ir_len == 0 {
