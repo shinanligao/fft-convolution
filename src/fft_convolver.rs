@@ -230,12 +230,6 @@ impl Convolution for FFTConvolver {
         for i in self.active_seg_count..self.seg_count {
             self.segments_ir[i].fill(Complex::new(0., 0.));
         }
-
-        self.input_buffer.fill(0.);
-        self.input_buffer_fill = 0;
-
-        // Reset current position
-        self.current = 0;
     }
 
     fn process(&mut self, input: &[Sample], output: &mut [Sample]) {
