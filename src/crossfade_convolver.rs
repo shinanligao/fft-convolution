@@ -105,7 +105,7 @@ fn test_crossfade_convolver_passthrough() {
     let mut response = [0.0; 1024];
     response[0] = 1.0;
     let mut convolver = CrossfadeConvolver::new(
-        crate::fft_convolver::FFTConvolver::init(&response, 1024, response.len()),
+        crate::fft_convolver::FFTConvolverOLA::init(&response, 1024, response.len()),
         1024,
         1024,
         1024,

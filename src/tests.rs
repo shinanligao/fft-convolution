@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use crate::crossfade_convolver::CrossfadeConvolver;
-    use crate::fft_convolver::FFTConvolver;
+    use crate::fft_convolver::FFTConvolverOLA;
     use crate::{Convolution, Sample};
 
     fn generate_sinusoid(
@@ -23,9 +23,9 @@ mod tests {
         let block_size = 512;
         let response_a = generate_sinusoid(block_size, 1000.0, 48000.0, 1.0);
         let response_b = generate_sinusoid(block_size, 2000.0, 48000.0, 0.7);
-        let mut convolver_a = FFTConvolver::init(&response_a, block_size, response_a.len());
-        let mut convolver_b = FFTConvolver::init(&response_b, block_size, response_b.len());
-        let mut convolver_update = FFTConvolver::init(&response_a, block_size, response_a.len());
+        let mut convolver_a = FFTConvolverOLA::init(&response_a, block_size, response_a.len());
+        let mut convolver_b = FFTConvolverOLA::init(&response_b, block_size, response_b.len());
+        let mut convolver_update = FFTConvolverOLA::init(&response_a, block_size, response_a.len());
         let mut output_a = vec![0.0; block_size];
         let mut output_b = vec![0.0; block_size];
         let mut output_update = vec![0.0; block_size];
@@ -66,8 +66,8 @@ mod tests {
         let block_size = 512;
         let response_a = generate_sinusoid(block_size, 1000.0, 48000.0, 1.0);
         let response_b = generate_sinusoid(block_size, 2000.0, 48000.0, 0.7);
-        let mut convolver_a = FFTConvolver::init(&response_a, block_size, response_a.len());
-        let mut convolver_b = FFTConvolver::init(&response_b, block_size, response_b.len());
+        let mut convolver_a = FFTConvolverOLA::init(&response_a, block_size, response_a.len());
+        let mut convolver_b = FFTConvolverOLA::init(&response_b, block_size, response_b.len());
         let mut crossfade_convolver =
             CrossfadeConvolver::new(convolver_a.clone(), block_size, block_size, block_size);
         let mut output_a = vec![0.0; block_size];

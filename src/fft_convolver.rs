@@ -100,7 +100,7 @@ pub fn sum(result: &mut [f32], a: &[f32], b: &[f32]) {
     }
 }
 #[derive(Default, Clone)]
-pub struct FFTConvolver {
+pub struct FFTConvolverOLA {
     ir_len: usize,
     block_size: usize,
     _seg_size: usize,
@@ -119,7 +119,7 @@ pub struct FFTConvolver {
     input_buffer_fill: usize,
 }
 
-impl Convolution for FFTConvolver {
+impl Convolution for FFTConvolverOLA {
     fn init(impulse_response: &[Sample], block_size: usize, max_response_length: usize) -> Self {
         if max_response_length < impulse_response.len() {
             panic!(
@@ -316,10 +316,10 @@ impl Convolution for FFTConvolver {
 }
 
 #[test]
-fn test_fft_convolver_passthrough() {
+fn test_fft_convolver_ola_passthrough() {
     let mut response = [0.0; 1024];
     response[0] = 1.0;
-    let mut convolver = FFTConvolver::init(&response, 1024, response.len());
+    let mut convolver = FFTConvolverOLA::init(&response, 1024, response.len());
     let input = vec![1.0; 1024];
     let mut output = vec![0.0; 1024];
     convolver.process(&input, &mut output);
@@ -331,11 +331,11 @@ fn test_fft_convolver_passthrough() {
 
 #[derive(Clone)]
 pub struct TwoStageFFTConvolver {
-    head_convolver: FFTConvolver,
-    tail_convolver0: FFTConvolver,
+    head_convolver: FFTConvolverOLA,
+    tail_convolver0: FFTConvolverOLA,
     tail_output0: Vec<Sample>,
     tail_precalculated0: Vec<Sample>,
-    tail_convolver: FFTConvolver,
+    tail_convolver: FFTConvolverOLA,
     tail_output: Vec<Sample>,
     tail_precalculated: Vec<Sample>,
     tail_input: Vec<Sample>,
@@ -360,7 +360,7 @@ impl Convolution for TwoStageFFTConvolver {
         padded_ir.resize(max_response_length, 0.);
 
         let head_ir_len = std::cmp::min(max_response_length, tail_block_size);
-        let head_convolver = FFTConvolver::init(
+        let head_convolver = FFTConvolverOLA::init(
             &padded_ir[0..head_ir_len],
             head_block_size,
             max_response_length,
@@ -370,7 +370,7 @@ impl Convolution for TwoStageFFTConvolver {
             .then(|| {
                 let tail_ir_len =
                     std::cmp::min(max_response_length - tail_block_size, tail_block_size);
-                FFTConvolver::init(
+                FFTConvolverOLA::init(
                     &padded_ir[tail_block_size..tail_block_size + tail_ir_len],
                     head_block_size,
                     max_response_length,
@@ -384,7 +384,7 @@ impl Convolution for TwoStageFFTConvolver {
         let tail_convolver = (max_response_length > 2 * tail_block_size)
             .then(|| {
                 let tail_ir_len = max_response_length - 2 * tail_block_size;
-                FFTConvolver::init(
+                FFTConvolverOLA::init(
                     &padded_ir[2 * tail_block_size..2 * tail_block_size + tail_ir_len],
                     tail_block_size,
                     max_response_length,
