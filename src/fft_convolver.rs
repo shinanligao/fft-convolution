@@ -315,11 +315,235 @@ impl Convolution for FFTConvolverOLA {
     }
 }
 
+#[derive(Default, Clone)]
+pub struct FFTConvolverOLS {
+    ir_len: usize,
+    block_size: usize,
+    _seg_size: usize,
+    seg_count: usize,
+    active_seg_count: usize,
+    _fft_complex_size: usize,
+    segments: Vec<Vec<Complex<f32>>>,
+    segments_ir: Vec<Vec<Complex<f32>>>,
+    fft_buffer: Vec<f32>,
+    fft: Fft,
+    pre_multiplied: Vec<Complex<f32>>,
+    conv: Vec<Complex<f32>>,
+    current: usize,
+    input_buffer: Vec<f32>,
+    input_buffer_fill: usize,
+}
+
+impl Convolution for FFTConvolverOLS {
+    fn init(impulse_response: &[Sample], block_size: usize, max_response_length: usize) -> Self {
+        if max_response_length < impulse_response.len() {
+            panic!(
+                "max_response_length must be at least the length of the initial impulse response"
+            );
+        }
+        let mut padded_ir = impulse_response.to_vec();
+        padded_ir.resize(max_response_length, 0.);
+        let ir_len = padded_ir.len();
+
+        let block_size = block_size.next_power_of_two();
+        let seg_size = 2 * block_size;
+        let seg_count = (ir_len as f64 / block_size as f64).ceil() as usize;
+        let active_seg_count = seg_count;
+        let fft_complex_size = complex_size(seg_size);
+
+        // FFT
+        let mut fft = Fft::default();
+        fft.init(seg_size);
+        let mut fft_buffer = vec![0.; seg_size];
+
+        // prepare segments
+        let segments = vec![vec![Complex::new(0., 0.); fft_complex_size]; seg_count];
+        let mut segments_ir = Vec::new();
+
+        // prepare ir
+        for i in 0..seg_count {
+            let mut segment = vec![Complex::new(0., 0.); fft_complex_size];
+            let remaining = ir_len - (i * block_size);
+            let size_copy = if remaining >= block_size {
+                block_size
+            } else {
+                remaining
+            };
+            copy_and_pad(&mut fft_buffer, &padded_ir[i * block_size..], size_copy);
+            fft.forward(&mut fft_buffer, &mut segment).unwrap();
+            segments_ir.push(segment);
+        }
+
+        // prepare convolution buffers
+        let pre_multiplied = vec![Complex::new(0., 0.); fft_complex_size];
+        let conv = vec![Complex::new(0., 0.); fft_complex_size];
+
+        // prepare input buffer
+        let input_buffer = vec![0.; seg_size];
+        let input_buffer_fill = 0;
+
+        // reset current position
+        let current = 0;
+
+        Self {
+            ir_len,
+            block_size,
+            _seg_size: seg_size,
+            seg_count,
+            active_seg_count,
+            _fft_complex_size: fft_complex_size,
+            segments,
+            segments_ir,
+            fft_buffer,
+            fft,
+            pre_multiplied,
+            conv,
+            current,
+            input_buffer,
+            input_buffer_fill,
+        }
+    }
+
+    fn update(&mut self, response: &[Sample]) {
+        let new_ir_len = response.len();
+
+        if new_ir_len > self.ir_len {
+            panic!("New impulse response is longer than initialized length");
+        }
+
+        if self.ir_len == 0 {
+            return;
+        }
+
+        self.fft_buffer.fill(0.);
+        self.conv.fill(Complex::new(0., 0.));
+        self.pre_multiplied.fill(Complex::new(0., 0.));
+
+        self.active_seg_count = ((new_ir_len as f64 / self.block_size as f64).ceil()) as usize;
+
+        // Prepare IR
+        for i in 0..self.active_seg_count {
+            let segment = &mut self.segments_ir[i];
+            let remaining = new_ir_len - (i * self.block_size);
+            let size_copy = if remaining >= self.block_size {
+                self.block_size
+            } else {
+                remaining
+            };
+            copy_and_pad(
+                &mut self.fft_buffer,
+                &response[i * self.block_size..],
+                size_copy,
+            );
+            self.fft.forward(&mut self.fft_buffer, segment).unwrap();
+        }
+
+        // Clear remaining segments
+        for i in self.active_seg_count..self.seg_count {
+            self.segments_ir[i].fill(Complex::new(0., 0.));
+        }
+    }
+
+    fn process(&mut self, input: &[Sample], output: &mut [Sample]) {
+        if self.active_seg_count == 0 {
+            output.fill(0.);
+            return;
+        }
+
+        let mut processed = 0;
+        while processed < output.len() {
+            let input_buffer_was_empty = self.input_buffer_fill == 0;
+            let processing = std::cmp::min(
+                output.len() - processed,
+                self.block_size - self.input_buffer_fill,
+            );
+
+            if input_buffer_was_empty {
+                self.input_buffer.copy_within(self.block_size.., 0);
+            }
+
+            let input_buffer_pos = self.input_buffer_fill + self.block_size;
+            self.input_buffer[input_buffer_pos..input_buffer_pos + processing]
+                .clone_from_slice(&input[processed..processed + processing]);
+
+            self.input_buffer_fill += processing;
+
+            self.fft_buffer.copy_from_slice(&self.input_buffer);
+
+            // Forward FFT
+            if let Err(_err) = self
+                .fft
+                .forward(&mut self.fft_buffer, &mut self.segments[self.current])
+            {
+                output.fill(0.);
+                return; // error!
+            }
+
+            // complex multiplication
+            if input_buffer_was_empty {
+                self.pre_multiplied.fill(Complex { re: 0., im: 0. });
+                for i in 1..self.active_seg_count {
+                    let index_ir = i;
+                    let index_audio = (self.current + i) % self.active_seg_count;
+                    complex_multiply_accumulate(
+                        &mut self.pre_multiplied,
+                        &self.segments_ir[index_ir],
+                        &self.segments[index_audio],
+                    );
+                }
+            }
+            self.conv.clone_from_slice(&self.pre_multiplied);
+            complex_multiply_accumulate(
+                &mut self.conv,
+                &self.segments[self.current],
+                &self.segments_ir[0],
+            );
+
+            // Backward FFT
+            if let Err(_err) = self.fft.inverse(&mut self.conv, &mut self.fft_buffer) {
+                output.fill(0.);
+                return; // error!
+            }
+
+            // Only keep the last samples
+            output[processed..processed + processing]
+                .copy_from_slice(&self.fft_buffer[input_buffer_pos..input_buffer_pos + processing]);
+
+            if self.input_buffer_fill == self.block_size {
+                // Processed entire block
+                self.input_buffer_fill = 0;
+
+                // Update the current segment
+                self.current = if self.current > 0 {
+                    self.current - 1
+                } else {
+                    self.active_seg_count - 1
+                };
+            }
+            processed += processing;
+        }
+    }
+}
+
 #[test]
 fn test_fft_convolver_ola_passthrough() {
     let mut response = [0.0; 1024];
     response[0] = 1.0;
     let mut convolver = FFTConvolverOLA::init(&response, 1024, response.len());
+    let input = vec![1.0; 1024];
+    let mut output = vec![0.0; 1024];
+    convolver.process(&input, &mut output);
+
+    for i in 0..1024 {
+        assert!((output[i] - 1.0).abs() < 1e-6);
+    }
+}
+
+#[test]
+fn test_fft_convolver_ols_passthrough() {
+    let mut response = [0.0; 1024];
+    response[0] = 1.0;
+    let mut convolver = FFTConvolverOLS::init(&response, 1024, response.len());
     let input = vec![1.0; 1024];
     let mut output = vec![0.0; 1024];
     convolver.process(&input, &mut output);
