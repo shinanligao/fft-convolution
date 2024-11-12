@@ -1,4 +1,4 @@
-pub mod crossfade_convolver;
+pub mod crossfade_convolver_td;
 pub mod fft_convolver;
 mod tests;
 

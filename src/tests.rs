@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::crossfade_convolver::CrossfadeConvolver;
+    use crate::crossfade_convolver_td::CrossfadeConvolverTimeDomain;
     use crate::fft_convolver::{FFTConvolverOLA, FFTConvolverOLS};
     use crate::{Convolution, Sample};
 
@@ -93,7 +93,7 @@ mod tests {
     }
 
     #[test]
-    fn test_crossfade_convolver() {
+    fn test_crossfade_convolver_td() {
         let block_size = 512;
         let response_a = generate_sinusoid(block_size, 1000.0, 48000.0, 1.0);
         let response_b = generate_sinusoid(block_size, 2000.0, 48000.0, 0.7);
@@ -108,9 +108,12 @@ mod tests {
         {
             let mut convolver_a = C::init(response_a, block_size, response_a.len());
             let mut convolver_b = C::init(response_b, block_size, response_b.len());
-            let mut crossfade_convolver =
-                CrossfadeConvolver::new(convolver_a.clone(), block_size, block_size, block_size);
-
+            let mut crossfade_convolver = CrossfadeConvolverTimeDomain::new(
+                convolver_a.clone(),
+                block_size,
+                block_size,
+                block_size,
+            );
             let mut output_a = vec![0.0; block_size];
             let mut output_b = vec![0.0; block_size];
             let mut output_crossfade_convolver = vec![0.0; block_size];
