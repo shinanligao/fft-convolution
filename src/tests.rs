@@ -1,5 +1,6 @@
 #[cfg(test)]
 mod tests {
+    use crate::crossfade_convolver_fd::CrossfadeConvolverFrequencyDomain;
     use crate::crossfade_convolver_td::CrossfadeConvolverTimeDomain;
     use crate::fft_convolver::{FFTConvolverOLA, FFTConvolverOLS};
     use crate::{Convolution, Sample};
@@ -172,6 +173,48 @@ mod tests {
 
         for (sample_ola, sample_ols) in ola_outputs.iter().zip(ols_outputs.iter()) {
             assert!((sample_ola - sample_ols).abs() < 1e-4);
+        }
+    }
+
+    #[test]
+    fn time_domain_and_frequency_crossfaders_are_equivalent() {
+        let block_size = 512;
+        let response_a = generate_sinusoid(block_size * 4, 1000.0, 48000.0, 1.0);
+        let response_b = generate_sinusoid(block_size * 4, 2000.0, 48000.0, 0.7);
+        let num_input_blocks = 16;
+        let input = generate_sinusoid(num_input_blocks * block_size, 1300.0, 48000.0, 1.0);
+        let mut output_td = vec![0.0; num_input_blocks * block_size];
+        let mut output_fd = vec![0.0; num_input_blocks * block_size];
+        let mut crossfade_convolver_td = CrossfadeConvolverTimeDomain::<FFTConvolverOLS>::new(
+            FFTConvolverOLS::init(&response_a, block_size, response_a.len()),
+            response_a.len(),
+            block_size,
+            block_size,
+        );
+        let mut crossfade_convolver_fd =
+            CrossfadeConvolverFrequencyDomain::init(&response_a, block_size, response_a.len());
+
+        let update_index = 8;
+        for i in 0..num_input_blocks {
+            if i == update_index {
+                crossfade_convolver_td.update(&response_b);
+            }
+
+            if i == update_index + 1 {
+                crossfade_convolver_fd.update(&response_b);
+            }
+
+            crossfade_convolver_td.process(
+                &input[i * block_size..(i + 1) * block_size],
+                &mut output_td[i * block_size..(i + 1) * block_size],
+            );
+            crossfade_convolver_fd.process(
+                &input[i * block_size..(i + 1) * block_size],
+                &mut output_fd[i * block_size..(i + 1) * block_size],
+            );
+            for j in i * block_size..(i + 1) * block_size {
+                assert!((output_td[j] - output_fd[j]).abs() < 1e-1); // TODO: align start of crossfade between TD and FD, which should reduce this error
+            }
         }
     }
 }

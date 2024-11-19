@@ -1,3 +1,4 @@
+pub mod crossfade_convolver_fd;
 pub mod crossfade_convolver_td;
 pub mod crossfader;
 pub mod fft_convolver;
