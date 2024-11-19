@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use crate::crossfade_convolver_fd::CrossfadeConvolverFrequencyDomain;
     use crate::crossfade_convolver_td::CrossfadeConvolverTimeDomain;
     use crate::faded_stepwise_update_convolver::FadedStepwiseUpdateConvolver;
@@ -7,7 +7,10 @@ mod tests {
     use crate::stepwise_update_convolver::StepwiseUpdateConvolver;
     use crate::{Convolution, Sample};
 
-    fn generate_sinusoid(
+    use std::fs::File;
+    use std::io::{BufRead, BufReader, Error};
+
+    pub fn generate_sinusoid(
         length: usize,
         frequency: f32,
         sample_rate: f32,
@@ -19,6 +22,28 @@ mod tests {
                 gain * (2.0 * std::f32::consts::PI * frequency * i as Sample / sample_rate).sin();
         }
         signal
+    }
+
+    fn read_vector_from_file(file_path: &str) -> Result<Vec<Sample>, Error> {
+        let file = File::open(file_path)?;
+        let reader = BufReader::new(file);
+        let mut vec = Vec::new();
+
+        for line in reader.lines() {
+            let line = line?;
+            // Parse each line as a Sample and collect results
+            match line.trim().parse::<Sample>() {
+                Ok(value) => vec.push(value),
+                Err(_) => {
+                    return Err(Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "Failed to parse float",
+                    ))
+                }
+            }
+        }
+
+        Ok(vec)
     }
 
     #[test]
@@ -436,5 +461,171 @@ mod tests {
 
             check_equal(&outputs[i], &outputs[i + 1]);
         }
+    }
+
+    #[test]
+    fn compare_sideband_energy() {
+        use crate::evaluation::sideband_energy::sideband_energy;
+        use serde_json::json;
+        use std::fs::File;
+        use std::io::Write;
+
+        let frequency = 100.0;
+        let sample_rate = 48000.0;
+
+        fn run_convolver<C>(
+            response_b: &[Sample],
+            update_index: usize,
+            num_input_blocks: usize,
+            convolver: &mut C,
+            block_size: usize,
+            frequency: Sample,
+            sample_rate: Sample,
+        ) -> Vec<Sample>
+        where
+            C: Convolution,
+        {
+            let mut output_fd = vec![0.0; num_input_blocks * block_size];
+
+            let input =
+                generate_sinusoid(num_input_blocks * block_size, frequency, sample_rate, 1.0);
+
+            for i in 0..num_input_blocks {
+                if i == update_index {
+                    convolver.update(&response_b);
+                }
+
+                convolver.process(
+                    &input[i * block_size..(i + 1) * block_size],
+                    &mut output_fd[i * block_size..(i + 1) * block_size],
+                );
+            }
+            output_fd
+        }
+
+        let response_a = read_vector_from_file("resources/response_0.txt").unwrap();
+        let response_b = read_vector_from_file("resources/response_1.txt").unwrap();
+
+        let max_response_length = response_a.len().max(response_b.len());
+
+        let target_transition_duration: usize = 12000;
+
+        let mut results = json!({});
+
+        for block_size in [128, 512, 2048] {
+            // ensure that transition is started after the transient ramp-up is complete
+            let update_index = response_a.len().div_ceil(block_size);
+
+            let num_input_blocks = update_index + target_transition_duration.div_ceil(block_size);
+
+            // Time Domain Crossfade Convolver
+            let mut crossfade_convolver_td = CrossfadeConvolverTimeDomain::<FFTConvolverOLS>::new(
+                FFTConvolverOLS::init(&response_a, block_size, max_response_length),
+                response_a.len(),
+                block_size,
+                target_transition_duration,
+            );
+
+            let mut crossfade_convolver_fd = CrossfadeConvolverFrequencyDomain::init(
+                &response_a,
+                block_size,
+                max_response_length,
+            );
+
+            let mut stepwise_update_convolver =
+                StepwiseUpdateConvolver::init(&response_a, block_size, max_response_length);
+
+            let mut faded_stepwise_update_convolver = FadedStepwiseUpdateConvolver::new(
+                &response_a,
+                max_response_length,
+                block_size,
+                target_transition_duration,
+            );
+
+            let output_td = run_convolver(
+                &response_b,
+                update_index,
+                num_input_blocks,
+                &mut crossfade_convolver_td,
+                block_size,
+                frequency,
+                sample_rate,
+            );
+
+            let output_fd = run_convolver(
+                &response_b,
+                update_index,
+                num_input_blocks,
+                &mut crossfade_convolver_fd,
+                block_size,
+                frequency,
+                sample_rate,
+            );
+
+            let output_stepwise = run_convolver(
+                &response_b,
+                update_index,
+                num_input_blocks,
+                &mut stepwise_update_convolver,
+                block_size,
+                frequency,
+                sample_rate,
+            );
+
+            let output_faded = run_convolver(
+                &response_b,
+                update_index,
+                num_input_blocks,
+                &mut faded_stepwise_update_convolver,
+                block_size,
+                frequency,
+                sample_rate,
+            );
+
+            let sideband_energy_td = sideband_energy(
+                &output_td[update_index * block_size
+                    ..update_index * block_size + target_transition_duration],
+                frequency,
+                sample_rate,
+            );
+
+            let sideband_energy_fd = sideband_energy(
+                &output_fd[update_index * block_size..(update_index + 1) * block_size],
+                frequency,
+                sample_rate,
+            );
+
+            let sideband_energy_stepwise = sideband_energy(
+                &output_stepwise
+                    [update_index * block_size..update_index * block_size + max_response_length],
+                frequency,
+                sample_rate,
+            );
+
+            let sideband_energy_faded = sideband_energy(
+                &output_faded[update_index * block_size
+                    ..update_index * block_size + target_transition_duration],
+                frequency,
+                sample_rate,
+            );
+
+            let key_td = "time_domain_crossfade";
+            let key_fd = "frequency_domain_crossfade";
+            let key_step = "stepwise_update";
+            let key_faded = "faded_stepwise_update";
+
+            let results_block = json!({
+                key_td: sideband_energy_td,
+                key_fd: sideband_energy_fd,
+                key_step: sideband_energy_stepwise,
+                key_faded: sideband_energy_faded,
+            });
+
+            results[block_size.to_string()] = results_block;
+        }
+
+        let mut file = File::create("sideband_energy.json").unwrap();
+        file.write_all(serde_json::to_string_pretty(&results).unwrap().as_bytes())
+            .unwrap();
     }
 }

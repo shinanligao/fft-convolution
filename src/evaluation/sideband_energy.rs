@@ -2,6 +2,20 @@ use crate::fft_convolver::{complex_size, Fft};
 use crate::Sample;
 use rustfft::num_complex::Complex;
 
+pub fn generate_sinusoid(
+    length: usize,
+    frequency: f32,
+    sample_rate: f32,
+    gain: f32,
+) -> Vec<Sample> {
+    let mut signal = vec![0.0; length];
+    for i in 0..length {
+        signal[i] =
+            gain * (2.0 * std::f32::consts::PI * frequency * i as Sample / sample_rate).sin();
+    }
+    signal
+}
+
 fn hann_window(size: usize) -> Vec<Sample> {
     (0..size)
         .map(|i| {
@@ -56,7 +70,6 @@ pub fn sideband_energy(input: &[Sample], input_frequency: Sample, sample_rate: S
 
 #[test]
 fn test_sideband_energy() {
-    use crate::tests::test_utils::generate_sinusoid;
     let num_samples = 4080;
     let sample_rate = 48000.0;
     let frequency = 100.0;
