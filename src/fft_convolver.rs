@@ -135,6 +135,10 @@ impl FFTConvolverOLA {
         );
         self.fft.forward(&mut self.fft_buffer, segment).unwrap();
     }
+
+    pub fn input_buffer_fill(&self) -> &usize {
+        &self.input_buffer_fill
+    }
 }
 
 impl Convolution for FFTConvolverOLA {

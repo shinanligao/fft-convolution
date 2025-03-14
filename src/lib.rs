@@ -1,6 +1,7 @@
 pub mod crossfade_convolver_fd;
 pub mod crossfade_convolver_td;
 pub mod crossfader;
+pub mod faded_stepwise_update_convolver;
 pub mod fft_convolver;
 pub mod stepwise_update_convolver;
 mod tests;

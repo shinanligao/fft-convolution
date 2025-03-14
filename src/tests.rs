@@ -2,6 +2,7 @@
 mod tests {
     use crate::crossfade_convolver_fd::CrossfadeConvolverFrequencyDomain;
     use crate::crossfade_convolver_td::CrossfadeConvolverTimeDomain;
+    use crate::faded_stepwise_update_convolver::FadedStepwiseUpdateConvolver;
     use crate::fft_convolver::{FFTConvolverOLA, FFTConvolverOLS};
     use crate::stepwise_update_convolver::StepwiseUpdateConvolver;
     use crate::{Convolution, Sample};
@@ -284,5 +285,156 @@ mod tests {
                 .collect::<Vec<Sample>>(),
             &output_stepwise_update_convolver,
         );
+    }
+
+    #[test]
+    fn faded_stepwise_update_corresponds_to_input_fading() {
+        let block_size = 256;
+        let num_segments = 32;
+        let response_a = generate_sinusoid(num_segments * block_size, 500.0, 48000.0, 0.5);
+        let response_b = generate_sinusoid(num_segments * block_size, 400.0, 48000.0, 0.9);
+
+        let num_input_blocks = num_segments * 8;
+        let transition_samples = num_segments * block_size * 3;
+
+        for block_factor in [0.5, 1.0, 2.0] {
+            let outer_block_size = (block_size as f32 / block_factor) as usize;
+
+            let mut convolver_a = FFTConvolverOLA::init(&response_a, block_size, response_a.len());
+            let mut convolver_b = FFTConvolverOLA::init(&response_b, block_size, response_b.len());
+
+            let fade_steps = ((transition_samples - response_a.len()) / block_size) as usize;
+
+            let mut faded_stepwise_update_convolver = FadedStepwiseUpdateConvolver::new(
+                &response_a,
+                response_a.len(),
+                block_size,
+                transition_samples,
+            );
+
+            let input = generate_sinusoid(num_input_blocks * block_size, 100.0, 48000.0, 0.3);
+            let mut input_gains_a = vec![1.0; num_input_blocks * block_size];
+            let mut input_gains_b = vec![0.0; num_input_blocks * block_size];
+
+            let mut output_a = vec![0.0; num_input_blocks * block_size];
+            let mut output_b = vec![0.0; num_input_blocks * block_size];
+            let mut output_faded_stepwise_update_convolver =
+                vec![0.0; num_input_blocks * block_size];
+
+            let num_outer_blocks = (num_input_blocks as f32 * block_factor) as usize;
+            let update_index = (num_segments as f32 * 2.0 * block_factor) as usize;
+
+            for i in 0..num_input_blocks * block_size {
+                if i < update_index * outer_block_size {
+                    continue;
+                }
+                let step = (i - update_index * outer_block_size) / block_size + 1;
+                let weight = (step as f32 / fade_steps as f32).min(1.0);
+                input_gains_a[i] = 1.0 - weight;
+                input_gains_b[i] = weight;
+            }
+
+            for i in 0..num_outer_blocks {
+                if i == update_index {
+                    faded_stepwise_update_convolver.update(&response_b);
+                }
+
+                convolver_a.process(
+                    &input
+                        .iter()
+                        .enumerate()
+                        .map(|(j, &x)| x * input_gains_a[j])
+                        .collect::<Vec<Sample>>()[i * outer_block_size..(i + 1) * outer_block_size],
+                    &mut output_a[i * outer_block_size..(i + 1) * outer_block_size],
+                );
+
+                convolver_b.process(
+                    &input
+                        .iter()
+                        .enumerate()
+                        .map(|(j, &x)| x * input_gains_b[j])
+                        .collect::<Vec<Sample>>()[i * outer_block_size..(i + 1) * outer_block_size],
+                    &mut output_b[i * outer_block_size..(i + 1) * outer_block_size],
+                );
+
+                faded_stepwise_update_convolver.process(
+                    &input[i * outer_block_size..(i + 1) * outer_block_size],
+                    &mut output_faded_stepwise_update_convolver
+                        [i * outer_block_size..(i + 1) * outer_block_size],
+                );
+            }
+
+            let check_equal = |lhs: &[Sample], rhs: &[Sample]| {
+                for j in 0..lhs.len() {
+                    assert!((lhs[j] - rhs[j]).abs() < 1e-4);
+                }
+            };
+
+            check_equal(
+                &output_a
+                    .iter()
+                    .zip(output_b.iter())
+                    .map(|(a, b)| a + b)
+                    .collect::<Vec<Sample>>(),
+                &output_faded_stepwise_update_convolver,
+            );
+        }
+    }
+
+    #[test]
+    fn faded_stepwise_update_convolver_independent_from_outer_block_size() {
+        let block_size = 256;
+        let num_segments = 32;
+        let num_input_blocks = num_segments * 8;
+        let transition_samples = num_segments * block_size * 3;
+
+        let mut outputs: Vec<Vec<Sample>> = Vec::new();
+
+        let block_factors = [0.5, 1.0, 2.0];
+
+        for block_factor in block_factors {
+            let outer_block_size = (block_size as f32 / block_factor) as usize;
+            let response_a = generate_sinusoid(num_segments * block_size, 500.0, 48000.0, 0.5);
+            let response_b = generate_sinusoid(num_segments * block_size, 400.0, 48000.0, 0.9);
+
+            let mut faded_stepwise_update_convolver = FadedStepwiseUpdateConvolver::new(
+                &response_a,
+                response_a.len(),
+                block_size,
+                transition_samples,
+            );
+
+            let input = generate_sinusoid(num_input_blocks * block_size, 100.0, 48000.0, 0.3);
+
+            let mut output_faded_stepwise_update_convolver =
+                vec![0.0; num_input_blocks * block_size];
+
+            let num_outer_blocks = (num_input_blocks as f32 * block_factor) as usize;
+            let update_index = (num_segments as f32 * 2.0 * block_factor) as usize;
+
+            for i in 0..num_outer_blocks {
+                if i == update_index {
+                    faded_stepwise_update_convolver.update(&response_b);
+                }
+
+                faded_stepwise_update_convolver.process(
+                    &input[i * outer_block_size..(i + 1) * outer_block_size],
+                    &mut output_faded_stepwise_update_convolver
+                        [i * outer_block_size..(i + 1) * outer_block_size],
+                );
+            }
+
+            outputs.push(output_faded_stepwise_update_convolver);
+        }
+
+        for i in 0..block_factors.len() - 1 {
+            let check_equal = |lhs: &[Sample], rhs: &[Sample]| {
+                for j in 0..lhs.len() {
+                    assert!((lhs[j] - rhs[j]).abs() < 1e-4);
+                }
+            };
+
+            check_equal(&outputs[i], &outputs[i + 1]);
+        }
     }
 }
