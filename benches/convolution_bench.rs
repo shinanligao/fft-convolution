@@ -30,74 +30,74 @@ pub fn convolver_update_process_benchmarks(c: &mut Criterion) {
     for ir_len in FILTER_LENGTHS.iter() {
         let response: Vec<Sample> = sinusoid(100.0, 1.0, *ir_len);
 
-        group.bench_with_input(
-            BenchmarkId::new("time_domain_crossfade", ir_len),
-            ir_len,
-            |b, _ir_len| {
-                b.iter_batched_ref(
-                    || -> CrossfadeConvolverTimeDomain<FFTConvolverOLS> {
-                        let mut convolver = CrossfadeConvolverTimeDomain::<FFTConvolverOLS>::new(
-                            FFTConvolverOLS::init(&response, BLOCK_SIZE, response.len()),
-                            response.len(),
-                            BLOCK_SIZE,
-                            TRANSITION_SAMPLES,
-                        );
-                        convolver.process(&input, &mut output_setup);
-                        convolver
-                    },
-                    |convolver: &mut CrossfadeConvolverTimeDomain<FFTConvolverOLS>| {
-                        convolver.update(&response);
-                        convolver.process(&input, &mut output_benchmark);
-                    },
-                    criterion::BatchSize::SmallInput,
-                )
-            },
-        );
+        // group.bench_with_input(
+        //     BenchmarkId::new("time_domain_crossfade", ir_len),
+        //     ir_len,
+        //     |b, _ir_len| {
+        //         b.iter_batched_ref(
+        //             || -> CrossfadeConvolverTimeDomain<FFTConvolverOLS> {
+        //                 let mut convolver = CrossfadeConvolverTimeDomain::<FFTConvolverOLS>::new(
+        //                     FFTConvolverOLS::init(&response, BLOCK_SIZE, response.len()),
+        //                     response.len(),
+        //                     BLOCK_SIZE,
+        //                     TRANSITION_SAMPLES,
+        //                 );
+        //                 convolver.process(&input, &mut output_setup);
+        //                 convolver
+        //             },
+        //             |convolver: &mut CrossfadeConvolverTimeDomain<FFTConvolverOLS>| {
+        //                 convolver.update(&response);
+        //                 convolver.process(&input, &mut output_benchmark);
+        //             },
+        //             criterion::BatchSize::SmallInput,
+        //         )
+        //     },
+        // );
 
-        group.bench_with_input(
-            BenchmarkId::new("frequency_domain_crossfade", ir_len),
-            ir_len,
-            |b, _ir_len| {
-                b.iter_batched_ref(
-                    || -> CrossfadeConvolverFrequencyDomain {
-                        let mut convolver = CrossfadeConvolverFrequencyDomain::init(
-                            &response,
-                            BLOCK_SIZE,
-                            response.len(),
-                        );
-                        convolver.process(&input, &mut output_setup);
-                        convolver
-                    },
-                    {
-                        |convolver: &mut CrossfadeConvolverFrequencyDomain| {
-                            convolver.update(&response);
-                            convolver.process(&input, &mut output_benchmark);
-                        }
-                    },
-                    criterion::BatchSize::SmallInput,
-                )
-            },
-        );
+        // group.bench_with_input(
+        //     BenchmarkId::new("frequency_domain_crossfade", ir_len),
+        //     ir_len,
+        //     |b, _ir_len| {
+        //         b.iter_batched_ref(
+        //             || -> CrossfadeConvolverFrequencyDomain {
+        //                 let mut convolver = CrossfadeConvolverFrequencyDomain::init(
+        //                     &response,
+        //                     BLOCK_SIZE,
+        //                     response.len(),
+        //                 );
+        //                 convolver.process(&input, &mut output_setup);
+        //                 convolver
+        //             },
+        //             {
+        //                 |convolver: &mut CrossfadeConvolverFrequencyDomain| {
+        //                     convolver.update(&response);
+        //                     convolver.process(&input, &mut output_benchmark);
+        //                 }
+        //             },
+        //             criterion::BatchSize::SmallInput,
+        //         )
+        //     },
+        // );
 
-        group.bench_with_input(
-            BenchmarkId::new("stepwise_update", ir_len),
-            ir_len,
-            |b, _ir_len| {
-                b.iter_batched_ref(
-                    || -> StepwiseUpdateConvolver {
-                        let mut convolver =
-                            StepwiseUpdateConvolver::new(&response, response.len(), BLOCK_SIZE);
-                        convolver.process(&input, &mut output_setup);
-                        convolver
-                    },
-                    |convolver: &mut StepwiseUpdateConvolver| {
-                        convolver.update(&response);
-                        convolver.process(&input, &mut output_benchmark);
-                    },
-                    criterion::BatchSize::SmallInput,
-                )
-            },
-        );
+        // group.bench_with_input(
+        //     BenchmarkId::new("stepwise_update", ir_len),
+        //     ir_len,
+        //     |b, _ir_len| {
+        //         b.iter_batched_ref(
+        //             || -> StepwiseUpdateConvolver {
+        //                 let mut convolver =
+        //                     StepwiseUpdateConvolver::new(&response, response.len(), BLOCK_SIZE);
+        //                 convolver.process(&input, &mut output_setup);
+        //                 convolver
+        //             },
+        //             |convolver: &mut StepwiseUpdateConvolver| {
+        //                 convolver.update(&response);
+        //                 convolver.process(&input, &mut output_benchmark);
+        //             },
+        //             criterion::BatchSize::SmallInput,
+        //         )
+        //     },
+        // );
 
         group.bench_with_input(
             BenchmarkId::new("faded_stepwise_update", ir_len),
