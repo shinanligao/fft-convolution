@@ -1,5 +1,6 @@
-use crate::fft_convolver::{copy_and_pad, FFTConvolverOLA};
+use crate::fft_convolver::{complex_size, copy_and_pad, FFTConvolverOLA};
 use crate::{Convolution, Sample};
+use rustfft::num_complex::Complex;
 
 #[derive(Clone)]
 struct ImpulseResponse {
@@ -35,7 +36,8 @@ pub struct FadedStepwiseUpdateConvolver {
     block_size: usize,
     current_response: ImpulseResponse,
     next_response: ImpulseResponse,
-    mix_buffer: Vec<Sample>,
+    current_segments: Vec<Vec<Complex<Sample>>>,
+    next_segments: Vec<Vec<Complex<Sample>>>,
     queued_response: ImpulseResponse,
     transition_samples: usize,
     fade_steps: usize,
@@ -55,27 +57,24 @@ impl FadedStepwiseUpdateConvolver {
             println!("The transition cannot be shorter than the max response length.");
         }
 
+        let convolver = FFTConvolverOLA::init(response, block_size, max_response_length);
+
         Self {
-            convolver: FFTConvolverOLA::init(response, block_size, max_response_length),
+            convolver: convolver.clone(),
             block_size,
             current_response: ImpulseResponse::init(response, max_response_length),
             next_response: ImpulseResponse::new(max_response_length),
-            mix_buffer: vec![0.0; max_response_length],
+            current_segments: convolver.segments_ir().to_vec(),
+            next_segments: vec![
+                vec![Complex::new(0.0, 0.0); complex_size(2 * block_size)];
+                *convolver.active_seg_count()
+            ],
             queued_response: ImpulseResponse::new(max_response_length),
             transition_samples: transition_samples.max(max_response_length),
             fade_steps: 0,
             transition_counter: 0,
             switching: false,
             response_pending: false,
-        }
-    }
-
-    fn mix(&mut self, weight: f32, segment: usize) {
-        for i in
-            segment * self.block_size..self.mix_buffer.len().min((segment + 1) * self.block_size)
-        {
-            self.mix_buffer[i] = self.current_response.samples[i] * (1.0 - weight)
-                + self.next_response.samples[i] * weight;
         }
     }
 
@@ -128,6 +127,13 @@ impl Convolution for FadedStepwiseUpdateConvolver {
 
                 if self.switching {
                     let mut weight = 0.0;
+                    if self.transition_counter < *self.convolver.active_seg_count() {
+                        self.convolver.transform_segment(
+                            &self.next_response.samples,
+                            self.transition_counter,
+                            &mut self.next_segments[self.transition_counter],
+                        );
+                    }
                     for i in 0..*self.convolver.active_seg_count() {
                         let transition_index = self.transition_counter as i64 + 1 - i as i64;
                         weight = if self.fade_steps == 0 {
@@ -137,14 +143,18 @@ impl Convolution for FadedStepwiseUpdateConvolver {
                                 .min(1.0)
                                 .max(0.0)
                         };
-                        self.mix(weight, i);
-                        self.convolver
-                            .update_segment_from_samples(&self.mix_buffer, i);
+                        self.convolver.mix_to_segment(
+                            &self.current_segments,
+                            &self.next_segments,
+                            weight,
+                            i,
+                        );
                     }
                     self.transition_counter += 1;
                     if weight == 1.0 {
                         // last weight is 1.0
                         self.current_response.update(&self.next_response.samples);
+                        self.current_segments.clone_from(&self.next_segments);
                         self.switching = false;
                         self.transition_counter = 0;
                     }

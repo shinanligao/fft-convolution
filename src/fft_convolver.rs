@@ -124,6 +124,43 @@ impl FFTConvolverOLA {
         &self.active_seg_count
     }
 
+    pub fn mix_to_segment(
+        &mut self,
+        current: &[Vec<Complex<Sample>>],
+        next: &[Vec<Complex<Sample>>],
+        weight: f32,
+        segment: usize,
+    ) {
+        let one_minus_weight = 1.0 - weight;
+        self.segments_ir[segment]
+            .iter_mut()
+            .zip(current[segment].iter().zip(next[segment].iter()))
+            .for_each(|(out, (cur, next))| {
+                out.re = cur.re * one_minus_weight + next.re * weight;
+                out.im = cur.im * one_minus_weight + next.im * weight;
+            });
+    }
+
+    pub fn segments_ir(&self) -> &Vec<Vec<Complex<Sample>>> {
+        &self.segments_ir
+    }
+
+    pub fn transform_segment(
+        &mut self,
+        response: &[Sample],
+        index: usize,
+        segment: &mut [Complex<Sample>],
+    ) {
+        let remaining = response.len() - index * self.block_size;
+        let copy_size = std::cmp::min(self.block_size, remaining);
+        copy_and_pad(
+            &mut self.fft_buffer,
+            &response[index * self.block_size..],
+            copy_size,
+        );
+        self.fft.forward(&mut self.fft_buffer, segment).unwrap();
+    }
+
     pub fn update_segment_from_samples(&mut self, response: &[Sample], index: usize) {
         let segment = &mut self.segments_ir[index];
         let remaining = response.len() - index * self.block_size;
