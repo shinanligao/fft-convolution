@@ -9,8 +9,10 @@ use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::f64::consts::PI;
 
 const BLOCK_SIZE: usize = 256;
-const FILTER_LENGTHS: [usize; 8] = [128, 256, 512, 1024, 2048, 4096, 8192, 16384];
-const TRANSITION_SAMPLES: usize = 18000;
+const FILTER_LENGTHS: [usize; 14] = [
+    128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288, 1048576,
+];
+const TRANSITION_SAMPLES: usize = 1048576 + 10 * BLOCK_SIZE;
 
 pub fn convolver_update_process_benchmarks(c: &mut Criterion) {
     let amplitude = 10.0;
