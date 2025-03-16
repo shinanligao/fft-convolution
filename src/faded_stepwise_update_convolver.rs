@@ -144,7 +144,7 @@ impl Convolution for FadedStepwiseUpdateConvolver {
                     self.transition_counter += 1;
                     if weight == 1.0 {
                         // last weight is 1.0
-                        self.current_response = self.next_response.clone();
+                        self.current_response.update(&self.next_response.samples);
                         self.switching = false;
                         self.transition_counter = 0;
                     }
