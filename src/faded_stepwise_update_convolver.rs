@@ -70,8 +70,10 @@ impl FadedStepwiseUpdateConvolver {
         }
     }
 
-    fn mix(&mut self, weight: f32) {
-        for i in 0..self.mix_buffer.len() {
+    fn mix(&mut self, weight: f32, segment: usize) {
+        for i in
+            segment * self.block_size..self.mix_buffer.len().min((segment + 1) * self.block_size)
+        {
             self.mix_buffer[i] = self.current_response.samples[i] * (1.0 - weight)
                 + self.next_response.samples[i] * weight;
         }
@@ -135,7 +137,7 @@ impl Convolution for FadedStepwiseUpdateConvolver {
                                 .min(1.0)
                                 .max(0.0)
                         };
-                        self.mix(weight);
+                        self.mix(weight, i);
                         self.convolver.update_segment(&self.mix_buffer, i);
                     }
                     self.transition_counter += 1;
