@@ -124,7 +124,7 @@ impl FFTConvolverOLA {
         &self.active_seg_count
     }
 
-    pub fn update_segment(&mut self, response: &[Sample], index: usize) {
+    pub fn update_segment_from_samples(&mut self, response: &[Sample], index: usize) {
         let segment = &mut self.segments_ir[index];
         let remaining = response.len() - index * self.block_size;
         let copy_size = std::cmp::min(self.block_size, remaining);
@@ -233,7 +233,7 @@ impl Convolution for FFTConvolverOLA {
 
         // Prepare IR
         for i in 0..self.active_seg_count {
-            self.update_segment(response, i);
+            self.update_segment_from_samples(response, i);
         }
 
         // Clear remaining segments

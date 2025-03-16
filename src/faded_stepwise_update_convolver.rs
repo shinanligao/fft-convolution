@@ -138,7 +138,8 @@ impl Convolution for FadedStepwiseUpdateConvolver {
                                 .max(0.0)
                         };
                         self.mix(weight, i);
-                        self.convolver.update_segment(&self.mix_buffer, i);
+                        self.convolver
+                            .update_segment_from_samples(&self.mix_buffer, i);
                     }
                     self.transition_counter += 1;
                     if weight == 1.0 {

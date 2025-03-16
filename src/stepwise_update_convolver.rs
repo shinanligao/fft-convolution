@@ -55,7 +55,7 @@ impl Convolution for StepwiseUpdateConvolver {
 
         if self.switching {
             self.convolver
-                .update_segment(&self.next_response, self.segment_to_load);
+                .update_segment_from_samples(&self.next_response, self.segment_to_load);
             self.segment_to_load += 1;
             if &self.segment_to_load == self.convolver.active_seg_count() {
                 self.switching = false;
