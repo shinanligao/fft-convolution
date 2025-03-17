@@ -121,7 +121,7 @@ impl Convolution for FadedStepwiseUpdateConvolver {
 
             if *self.convolver.input_buffer_fill() == 0 {
                 if !self.switching && self.response_pending {
-                    self.next_response.update(&self.queued_response.samples);
+                    std::mem::swap(&mut self.next_response, &mut self.queued_response);
                     self.initiate_switch();
                 }
 
@@ -153,8 +153,8 @@ impl Convolution for FadedStepwiseUpdateConvolver {
                     self.transition_counter += 1;
                     if weight == 1.0 {
                         // last weight is 1.0
-                        self.current_response.update(&self.next_response.samples);
-                        self.current_segments.clone_from(&self.next_segments);
+                        std::mem::swap(&mut self.current_response, &mut self.next_response);
+                        std::mem::swap(&mut self.current_segments, &mut self.next_segments);
                         self.switching = false;
                         self.transition_counter = 0;
                     }
