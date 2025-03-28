@@ -226,7 +226,7 @@ impl Convolution for CrossfadeConvolverFrequencyDomain {
         self.core_a.conv.fill(Complex { re: 0., im: 0. });
         for i in 0..self.active_seg_count {
             let index_ir = i;
-            let index_audio = (self.current + i) % self.active_seg_count;
+            let index_audio = (self.current + i) % self.seg_count;
             complex_multiply_accumulate(
                 &mut self.core_a.conv,
                 &self.core_a.segments_ir[index_ir],
@@ -237,7 +237,7 @@ impl Convolution for CrossfadeConvolverFrequencyDomain {
         self.core_b.conv.fill(Complex { re: 0., im: 0. });
         for i in 0..self.active_seg_count {
             let index_ir = i;
-            let index_audio = (self.current + i) % self.active_seg_count;
+            let index_audio = (self.current + i) % self.seg_count;
             complex_multiply_accumulate(
                 &mut self.core_b.conv,
                 &self.core_b.segments_ir[index_ir],
@@ -296,7 +296,7 @@ impl Convolution for CrossfadeConvolverFrequencyDomain {
         self.current = if self.current > 0 {
             self.current - 1
         } else {
-            self.active_seg_count - 1
+            self.seg_count - 1
         };
     }
 }
