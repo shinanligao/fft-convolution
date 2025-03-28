@@ -7,7 +7,7 @@ use rustfft::num_complex::Complex;
 pub struct CrossfadeConvolverFrequencyDomainCore {
     max_response_length: usize,
     block_size: usize,
-    seg_count: usize,
+    active_seg_count: usize,
     segments_ir: Vec<Vec<Complex<Sample>>>,
     fft_buffer: Vec<Sample>,
     fft: Fft,
@@ -15,7 +15,7 @@ pub struct CrossfadeConvolverFrequencyDomainCore {
 }
 
 impl CrossfadeConvolverFrequencyDomainCore {
-    fn update(&mut self, response: &[Sample], active_seg_count: usize) {
+    fn update(&mut self, response: &[Sample]) {
         let new_ir_len = response.len();
 
         if new_ir_len > self.max_response_length {
@@ -29,10 +29,10 @@ impl CrossfadeConvolverFrequencyDomainCore {
         self.fft_buffer.fill(0.);
         self.conv.fill(Complex::new(0., 0.));
 
-        // self.active_seg_count = ((new_ir_len as f64 / self.block_size as f64).ceil()) as usize;
+        self.active_seg_count = ((new_ir_len as f64 / self.block_size as f64).ceil()) as usize;
 
         // Prepare IR
-        for i in 0..active_seg_count {
+        for i in 0..self.active_seg_count {
             let segment = &mut self.segments_ir[i];
             let remaining = new_ir_len - (i * self.block_size);
             let size_copy = if remaining >= self.block_size {
@@ -49,17 +49,21 @@ impl CrossfadeConvolverFrequencyDomainCore {
         }
 
         // Clear remaining segments
-        for i in active_seg_count..self.seg_count {
+        for i in self.active_seg_count..self.segments_ir.len() {
             self.segments_ir[i].fill(Complex::new(0., 0.));
         }
+    }
+
+    fn active_seg_count(&self) -> usize {
+        self.active_seg_count
     }
 }
 
 #[derive(Clone)]
 pub struct CrossfadeConvolverFrequencyDomain {
     block_size: usize,
-    active_seg_count: usize,
     segments: Vec<Vec<Complex<Sample>>>,
+    seg_count: usize,
     core_a: CrossfadeConvolverFrequencyDomainCore,
     core_b: CrossfadeConvolverFrequencyDomainCore,
     conv: Vec<Complex<Sample>>,
@@ -77,18 +81,13 @@ impl CrossfadeConvolverFrequencyDomain {
     }
 
     fn swap(&mut self, response: &[Sample]) {
-        // hacky
-        self.active_seg_count = std::cmp::max(
-            self.active_seg_count,
-            ((response.len() as f64 / self.block_size as f64).ceil()) as usize,
-        );
         match self.fading_state.target() {
             Target::A => {
-                self.core_b.update(response, self.active_seg_count);
+                self.core_b.update(response);
                 self.fade_into(Target::B);
             }
             Target::B => {
-                self.core_a.update(response, self.active_seg_count);
+                self.core_a.update(response);
                 self.fade_into(Target::A);
             }
         }
@@ -159,7 +158,7 @@ impl Convolution for CrossfadeConvolverFrequencyDomain {
         let core = CrossfadeConvolverFrequencyDomainCore {
             max_response_length,
             block_size,
-            seg_count,
+            active_seg_count,
             segments_ir,
             fft_buffer: fft_buffer.clone(),
             fft,
@@ -173,8 +172,8 @@ impl Convolution for CrossfadeConvolverFrequencyDomain {
 
         Self {
             block_size,
-            active_seg_count,
             segments,
+            seg_count,
             core_a: core.clone(),
             core_b: core.clone(),
             conv,
@@ -203,7 +202,12 @@ impl Convolution for CrossfadeConvolverFrequencyDomain {
     }
 
     fn process(&mut self, input: &[Sample], output: &mut [Sample]) {
-        if self.active_seg_count == 0 {
+        let current_core = match self.fading_state.target() {
+            Target::A => &mut self.core_a,
+            Target::B => &mut self.core_b,
+        };
+
+        if current_core.active_seg_count() == 0 {
             output.fill(0.);
             return;
         }
@@ -224,7 +228,7 @@ impl Convolution for CrossfadeConvolverFrequencyDomain {
         }
 
         self.core_a.conv.fill(Complex { re: 0., im: 0. });
-        for i in 0..self.active_seg_count {
+        for i in 0..self.core_a.active_seg_count() {
             let index_ir = i;
             let index_audio = (self.current + i) % self.seg_count;
             complex_multiply_accumulate(
@@ -235,7 +239,7 @@ impl Convolution for CrossfadeConvolverFrequencyDomain {
         }
 
         self.core_b.conv.fill(Complex { re: 0., im: 0. });
-        for i in 0..self.active_seg_count {
+        for i in 0..self.core_b.active_seg_count() {
             let index_ir = i;
             let index_audio = (self.current + i) % self.seg_count;
             complex_multiply_accumulate(
