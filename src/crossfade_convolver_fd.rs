@@ -22,7 +22,7 @@ impl CrossfadeConvolverFrequencyDomainCore {
             panic!("New impulse response is longer than initialized length");
         }
 
-        if self.ir_len == 0 {
+        if new_ir_len == 0 {
             return;
         }
 
