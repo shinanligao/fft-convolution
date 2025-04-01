@@ -590,14 +590,15 @@ pub mod tests {
             );
 
             let sideband_energy_fd = sideband_energy(
-                &output_fd[update_index * block_size..(update_index + 1) * block_size],
+                &output_fd[update_index * block_size
+                    ..update_index * block_size + target_transition_duration],
                 frequency,
                 sample_rate,
             );
 
             let sideband_energy_stepwise = sideband_energy(
-                &output_stepwise
-                    [update_index * block_size..update_index * block_size + max_response_length],
+                &output_stepwise[update_index * block_size
+                    ..update_index * block_size + target_transition_duration],
                 frequency,
                 sample_rate,
             );

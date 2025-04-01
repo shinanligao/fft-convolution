@@ -1,20 +1,20 @@
 {
   "128": {
     "faded_stepwise_update": 0.001478062360547483,
-    "frequency_domain_crossfade": 0.1266207993030548,
-    "stepwise_update": 0.007744167000055313,
+    "frequency_domain_crossfade": 0.00012105784117011353,
+    "stepwise_update": 0.0019152482273057103,
     "time_domain_crossfade": 0.00018727194401435554
   },
   "2048": {
     "faded_stepwise_update": 0.00504202488809824,
-    "frequency_domain_crossfade": 0.01081891544163227,
-    "stepwise_update": 0.011309145949780941,
+    "frequency_domain_crossfade": 0.00031872335239313543,
+    "stepwise_update": 0.0027231345884501934,
     "time_domain_crossfade": 0.0001827127707656473
   },
   "512": {
     "faded_stepwise_update": 0.0025990991853177547,
-    "frequency_domain_crossfade": 0.07242369651794434,
-    "stepwise_update": 0.009074836038053036,
+    "frequency_domain_crossfade": 0.0001662949362071231,
+    "stepwise_update": 0.00221431627869606,
     "time_domain_crossfade": 0.0001870697014965117
   }
 }
