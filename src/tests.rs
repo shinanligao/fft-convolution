@@ -540,6 +540,8 @@ pub mod tests {
 
         let mut results = json!({});
 
+        let segment_size = 128;
+
         for distance in [50, 100, 200] {
             let mut results_distance = json!({});
 
@@ -622,13 +624,13 @@ pub mod tests {
                     sample_rate,
                 );
 
-                let num_segments = target_transition_duration.div_ceil(block_size);
+                let num_segments = target_transition_duration.div_ceil(segment_size);
 
                 let sideband_energy_td = (0..num_segments)
                     .map(|i| {
                         sideband_energy(
-                            &output_td[(update_index + i) * block_size
-                                ..(update_index + i + 1) * block_size],
+                            &output_td[(update_index + i) * segment_size
+                                ..(update_index + i + 1) * segment_size],
                             frequency,
                             sample_rate,
                         )
@@ -639,8 +641,8 @@ pub mod tests {
                 let sideband_energy_fd = (0..num_segments)
                     .map(|i| {
                         sideband_energy(
-                            &output_fd[(update_index + i) * block_size
-                                ..(update_index + i + 1) * block_size],
+                            &output_fd[(update_index + i) * segment_size
+                                ..(update_index + i + 1) * segment_size],
                             frequency,
                             sample_rate,
                         )
@@ -651,8 +653,8 @@ pub mod tests {
                 let sideband_energy_stepwise = (0..num_segments)
                     .map(|i| {
                         sideband_energy(
-                            &output_stepwise[(update_index + i) * block_size
-                                ..(update_index + i + 1) * block_size],
+                            &output_stepwise[(update_index + i) * segment_size
+                                ..(update_index + i + 1) * segment_size],
                             frequency,
                             sample_rate,
                         )
@@ -663,8 +665,8 @@ pub mod tests {
                 let sideband_energy_faded = (0..num_segments)
                     .map(|i| {
                         sideband_energy(
-                            &output_faded[(update_index + i) * block_size
-                                ..(update_index + i + 1) * block_size],
+                            &output_faded[(update_index + i) * segment_size
+                                ..(update_index + i + 1) * segment_size],
                             frequency,
                             sample_rate,
                         )
