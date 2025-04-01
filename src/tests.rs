@@ -10,7 +10,7 @@ pub mod tests {
     use serde_json::Value;
     use std::cmp::Ordering;
     use std::fs::File;
-    use std::io::{BufRead, BufReader, Error};
+    use std::io::{BufRead, BufReader, Error, Result, Write};
 
     pub fn generate_sinusoid(
         length: usize,
@@ -57,7 +57,7 @@ pub mod tests {
         results
     }
 
-    fn read_vector_from_file(file_path: &str) -> Result<Vec<Sample>, Error> {
+    fn read_vector_from_file(file_path: &str) -> Result<Vec<Sample>> {
         let file = File::open(file_path)?;
         let reader = BufReader::new(file);
         let mut vec = Vec::new();
@@ -77,6 +77,24 @@ pub mod tests {
         }
 
         Ok(vec)
+    }
+
+    // Add this function at an appropriate place in your code
+    fn write_results_to_file(
+        sorted_results: &[(String, String, String, f64)],
+        file_path: &str,
+    ) -> Result<()> {
+        let mut file = File::create(file_path)?;
+
+        // Write header
+        writeln!(file, "Distance,BlockSize,Algorithm,Metric")?;
+
+        // Write results
+        for (distance, block_size, algorithm, metric) in sorted_results {
+            writeln!(file, "{},{},{},{}", distance, block_size, algorithm, metric)?;
+        }
+
+        Ok(())
     }
 
     #[test]
@@ -697,11 +715,9 @@ pub mod tests {
 
         let sorted_results = sort_by_metric(&results);
 
-        for (distance, block_size, algorithm, metric) in sorted_results {
-            println!(
-                "Distance: {}, Block Size: {}, Algorithm: {}, Metric: {}",
-                distance, block_size, algorithm, metric
-            );
+        match write_results_to_file(&sorted_results, "sideband_energy_results.csv") {
+            Ok(_) => println!("Results written to sideband_energy_results.csv"),
+            Err(e) => eprintln!("Failed to write results: {}", e),
         }
     }
 }
