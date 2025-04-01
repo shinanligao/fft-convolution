@@ -7,6 +7,8 @@ pub mod tests {
     use crate::stepwise_update_convolver::StepwiseUpdateConvolver;
     use crate::{Convolution, Sample};
 
+    use serde_json::Value;
+    use std::cmp::Ordering;
     use std::fs::File;
     use std::io::{BufRead, BufReader, Error};
 
@@ -22,6 +24,37 @@ pub mod tests {
                 gain * (2.0 * std::f32::consts::PI * frequency * i as Sample / sample_rate).sin();
         }
         signal
+    }
+
+    fn sort_by_metric(json_obj: &Value) -> Vec<(String, String, String, f64)> {
+        let mut results = Vec::new();
+
+        if let Value::Object(distance_map) = json_obj {
+            for (distance, block_sizes) in distance_map {
+                if let Value::Object(block_size_map) = block_sizes {
+                    for (block_size, algorithms) in block_size_map {
+                        if let Value::Object(algorithm_map) = algorithms {
+                            for (algorithm, metric_value) in algorithm_map {
+                                if let Value::Number(metric) = metric_value {
+                                    if let Some(metric_f64) = metric.as_f64() {
+                                        results.push((
+                                            distance.clone(),
+                                            block_size.clone(),
+                                            algorithm.clone(),
+                                            metric_f64,
+                                        ));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        results.sort_by(|a, b| a.3.partial_cmp(&b.3).unwrap_or(Ordering::Equal));
+
+        results
     }
 
     fn read_vector_from_file(file_path: &str) -> Result<Vec<Sample>, Error> {
@@ -637,5 +670,14 @@ pub mod tests {
         let mut file = File::create("sideband_energy.json").unwrap();
         file.write_all(serde_json::to_string_pretty(&results).unwrap().as_bytes())
             .unwrap();
+
+        let sorted_results = sort_by_metric(&results);
+
+        for (distance, block_size, algorithm, metric) in sorted_results {
+            println!(
+                "Distance: {}, Block Size: {}, Algorithm: {}, Metric: {}",
+                distance, block_size, algorithm, metric
+            );
+        }
     }
 }
