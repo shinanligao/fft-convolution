@@ -1,62 +1,62 @@
 {
   "100": {
     "128": {
-      "faded_stepwise_update": 0.1275077760219574,
-      "frequency_domain_crossfade": 0.12750694155693054,
-      "stepwise_update": 0.1275801658630371,
-      "time_domain_crossfade": 0.12749840319156647
+      "faded_stepwise_update": 0.006638681516051292,
+      "frequency_domain_crossfade": 0.0062974258325994015,
+      "stepwise_update": 0.009761235676705837,
+      "time_domain_crossfade": 0.006249323952943087
     },
     "2048": {
-      "faded_stepwise_update": 0.12925371527671814,
-      "frequency_domain_crossfade": 0.12925367057323456,
-      "stepwise_update": 0.12925371527671814,
-      "time_domain_crossfade": 0.12925367057323456
+      "faded_stepwise_update": 0.009095611982047558,
+      "frequency_domain_crossfade": 0.0063237277790904045,
+      "stepwise_update": 0.013140344992280006,
+      "time_domain_crossfade": 0.0063030351884663105
     },
     "512": {
-      "faded_stepwise_update": 0.12925368547439575,
-      "frequency_domain_crossfade": 0.12925368547439575,
-      "stepwise_update": 0.12925368547439575,
-      "time_domain_crossfade": 0.12925370037555695
+      "faded_stepwise_update": 0.007417510729283094,
+      "frequency_domain_crossfade": 0.006285498850047588,
+      "stepwise_update": 0.010977279394865036,
+      "time_domain_crossfade": 0.006231027655303478
     }
   },
   "200": {
     "128": {
-      "faded_stepwise_update": 0.13966980576515198,
-      "frequency_domain_crossfade": 0.13966040313243866,
-      "stepwise_update": 0.13984185457229614,
-      "time_domain_crossfade": 0.13964201509952545
+      "faded_stepwise_update": 0.007481996435672045,
+      "frequency_domain_crossfade": 0.006905905902385712,
+      "stepwise_update": 0.012706988491117954,
+      "time_domain_crossfade": 0.006843056064099073
     },
     "2048": {
-      "faded_stepwise_update": 0.13982263207435608,
-      "frequency_domain_crossfade": 0.1398075520992279,
-      "stepwise_update": 0.1509147584438324,
-      "time_domain_crossfade": 0.1398075520992279
+      "faded_stepwise_update": 0.011468296870589256,
+      "frequency_domain_crossfade": 0.0069277179427444935,
+      "stepwise_update": 0.017619198188185692,
+      "time_domain_crossfade": 0.006883385591208935
     },
     "512": {
-      "faded_stepwise_update": 0.1398075819015503,
-      "frequency_domain_crossfade": 0.1398075670003891,
-      "stepwise_update": 0.14019310474395752,
-      "time_domain_crossfade": 0.1398075520992279
+      "faded_stepwise_update": 0.008854222483932972,
+      "frequency_domain_crossfade": 0.006900506559759378,
+      "stepwise_update": 0.01449571829289198,
+      "time_domain_crossfade": 0.006820094771683216
     }
   },
   "50": {
     "128": {
-      "faded_stepwise_update": 0.12595921754837036,
-      "frequency_domain_crossfade": 0.12595677375793457,
-      "stepwise_update": 0.1259956657886505,
-      "time_domain_crossfade": 0.12595264613628387
+      "faded_stepwise_update": 0.006494966801255941,
+      "frequency_domain_crossfade": 0.006222615018486977,
+      "stepwise_update": 0.008930996060371399,
+      "time_domain_crossfade": 0.006186031736433506
     },
     "2048": {
-      "faded_stepwise_update": 0.12860716879367828,
-      "frequency_domain_crossfade": 0.1286071538925171,
-      "stepwise_update": 0.12860716879367828,
-      "time_domain_crossfade": 0.1286071538925171
+      "faded_stepwise_update": 0.008418549783527851,
+      "frequency_domain_crossfade": 0.006246870383620262,
+      "stepwise_update": 0.011718214489519596,
+      "time_domain_crossfade": 0.00623704306781292
     },
     "512": {
-      "faded_stepwise_update": 0.12860718369483948,
-      "frequency_domain_crossfade": 0.12860716879367828,
-      "stepwise_update": 0.12860718369483948,
-      "time_domain_crossfade": 0.12860716879367828
+      "faded_stepwise_update": 0.007068414241075516,
+      "frequency_domain_crossfade": 0.0062067327089607716,
+      "stepwise_update": 0.009921884164214134,
+      "time_domain_crossfade": 0.006166168954223394
     }
   }
 }

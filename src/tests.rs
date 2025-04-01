@@ -540,7 +540,9 @@ pub mod tests {
 
         let mut results = json!({});
 
-        let segment_size = 128;
+        let segment_size = 4096;
+
+        let num_segments = target_transition_duration.div_ceil(segment_size);
 
         for distance in [50, 100, 200] {
             let mut results_distance = json!({});
@@ -556,8 +558,8 @@ pub mod tests {
                 // ensure that transition is started after the transient ramp-up is complete
                 let update_index = response_a.len().div_ceil(block_size);
 
-                let num_input_blocks =
-                    update_index + target_transition_duration.div_ceil(block_size);
+                let required_samples = update_index * block_size + num_segments * segment_size;
+                let num_input_blocks = required_samples.div_ceil(block_size);
 
                 // Time Domain Crossfade Convolver
                 let mut crossfade_convolver_td =
@@ -624,13 +626,11 @@ pub mod tests {
                     sample_rate,
                 );
 
-                let num_segments = target_transition_duration.div_ceil(segment_size);
-
                 let sideband_energy_td = (0..num_segments)
                     .map(|i| {
                         sideband_energy(
-                            &output_td[(update_index + i) * segment_size
-                                ..(update_index + i + 1) * segment_size],
+                            &output_td[update_index * block_size + i * segment_size
+                                ..update_index * block_size + (i + 1) * segment_size],
                             frequency,
                             sample_rate,
                         )
@@ -641,8 +641,8 @@ pub mod tests {
                 let sideband_energy_fd = (0..num_segments)
                     .map(|i| {
                         sideband_energy(
-                            &output_fd[(update_index + i) * segment_size
-                                ..(update_index + i + 1) * segment_size],
+                            &output_fd[update_index * block_size + i * segment_size
+                                ..update_index * block_size + (i + 1) * segment_size],
                             frequency,
                             sample_rate,
                         )
@@ -653,8 +653,8 @@ pub mod tests {
                 let sideband_energy_stepwise = (0..num_segments)
                     .map(|i| {
                         sideband_energy(
-                            &output_stepwise[(update_index + i) * segment_size
-                                ..(update_index + i + 1) * segment_size],
+                            &output_stepwise[update_index * block_size + i * segment_size
+                                ..update_index * block_size + (i + 1) * segment_size],
                             frequency,
                             sample_rate,
                         )
@@ -665,8 +665,8 @@ pub mod tests {
                 let sideband_energy_faded = (0..num_segments)
                     .map(|i| {
                         sideband_energy(
-                            &output_faded[(update_index + i) * segment_size
-                                ..(update_index + i + 1) * segment_size],
+                            &output_faded[update_index * block_size + i * segment_size
+                                ..update_index * block_size + (i + 1) * segment_size],
                             frequency,
                             sample_rate,
                         )
