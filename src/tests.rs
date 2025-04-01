@@ -622,33 +622,55 @@ pub mod tests {
                     sample_rate,
                 );
 
-                let sideband_energy_td = sideband_energy(
-                    &output_td[update_index * block_size
-                        ..update_index * block_size + target_transition_duration],
-                    frequency,
-                    sample_rate,
-                );
+                let num_segments = target_transition_duration.div_ceil(block_size);
 
-                let sideband_energy_fd = sideband_energy(
-                    &output_fd[update_index * block_size
-                        ..update_index * block_size + target_transition_duration],
-                    frequency,
-                    sample_rate,
-                );
+                let sideband_energy_td = (0..num_segments)
+                    .map(|i| {
+                        sideband_energy(
+                            &output_td[(update_index + i) * block_size
+                                ..(update_index + i + 1) * block_size],
+                            frequency,
+                            sample_rate,
+                        )
+                    })
+                    .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+                    .unwrap_or(Sample::default());
 
-                let sideband_energy_stepwise = sideband_energy(
-                    &output_stepwise[update_index * block_size
-                        ..update_index * block_size + target_transition_duration],
-                    frequency,
-                    sample_rate,
-                );
+                let sideband_energy_fd = (0..num_segments)
+                    .map(|i| {
+                        sideband_energy(
+                            &output_fd[(update_index + i) * block_size
+                                ..(update_index + i + 1) * block_size],
+                            frequency,
+                            sample_rate,
+                        )
+                    })
+                    .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+                    .unwrap_or(Sample::default());
 
-                let sideband_energy_faded = sideband_energy(
-                    &output_faded[update_index * block_size
-                        ..update_index * block_size + target_transition_duration],
-                    frequency,
-                    sample_rate,
-                );
+                let sideband_energy_stepwise = (0..num_segments)
+                    .map(|i| {
+                        sideband_energy(
+                            &output_stepwise[(update_index + i) * block_size
+                                ..(update_index + i + 1) * block_size],
+                            frequency,
+                            sample_rate,
+                        )
+                    })
+                    .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+                    .unwrap_or(Sample::default());
+
+                let sideband_energy_faded = (0..num_segments)
+                    .map(|i| {
+                        sideband_energy(
+                            &output_faded[(update_index + i) * block_size
+                                ..(update_index + i + 1) * block_size],
+                            frequency,
+                            sample_rate,
+                        )
+                    })
+                    .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+                    .unwrap_or(Sample::default());
 
                 let key_td = "time_domain_crossfade";
                 let key_fd = "frequency_domain_crossfade";

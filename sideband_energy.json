@@ -1,62 +1,62 @@
 {
   "100": {
     "128": {
-      "faded_stepwise_update": 0.001478062360547483,
-      "frequency_domain_crossfade": 0.00012105784117011353,
-      "stepwise_update": 0.0019152482273057103,
-      "time_domain_crossfade": 0.00018727194401435554
+      "faded_stepwise_update": 0.1275077760219574,
+      "frequency_domain_crossfade": 0.12750694155693054,
+      "stepwise_update": 0.1275801658630371,
+      "time_domain_crossfade": 0.12749840319156647
     },
     "2048": {
-      "faded_stepwise_update": 0.00504202488809824,
-      "frequency_domain_crossfade": 0.00031872335239313543,
-      "stepwise_update": 0.0027231345884501934,
-      "time_domain_crossfade": 0.0001827127707656473
+      "faded_stepwise_update": 0.016226138919591904,
+      "frequency_domain_crossfade": 0.01131733413785696,
+      "stepwise_update": 0.023701900616288185,
+      "time_domain_crossfade": 0.011258275248110294
     },
     "512": {
-      "faded_stepwise_update": 0.0025990991853177547,
-      "frequency_domain_crossfade": 0.0001662949362071231,
-      "stepwise_update": 0.00221431627869606,
-      "time_domain_crossfade": 0.0001870697014965117
+      "faded_stepwise_update": 0.07501909881830215,
+      "frequency_domain_crossfade": 0.07497456669807434,
+      "stepwise_update": 0.07580302655696869,
+      "time_domain_crossfade": 0.07472486793994904
     }
   },
   "200": {
     "128": {
-      "faded_stepwise_update": 0.002086506923660636,
-      "frequency_domain_crossfade": 0.0001379452005494386,
-      "stepwise_update": 0.0027705857064574957,
-      "time_domain_crossfade": 0.00028269513859413564
+      "faded_stepwise_update": 0.13966980576515198,
+      "frequency_domain_crossfade": 0.13966040313243866,
+      "stepwise_update": 0.13984185457229614,
+      "time_domain_crossfade": 0.13964201509952545
     },
     "2048": {
-      "faded_stepwise_update": 0.007154796272516251,
-      "frequency_domain_crossfade": 0.0005042951670475304,
-      "stepwise_update": 0.0038504290860146284,
-      "time_domain_crossfade": 0.0002714735164772719
+      "faded_stepwise_update": 0.02066199481487274,
+      "frequency_domain_crossfade": 0.01240148488432169,
+      "stepwise_update": 0.03195732459425926,
+      "time_domain_crossfade": 0.012306968681514263
     },
     "512": {
-      "faded_stepwise_update": 0.003666761564090848,
-      "frequency_domain_crossfade": 0.0002383606624789536,
-      "stepwise_update": 0.0031671065371483564,
-      "time_domain_crossfade": 0.0002818110806401819
+      "faded_stepwise_update": 0.0821816623210907,
+      "frequency_domain_crossfade": 0.08211707323789597,
+      "stepwise_update": 0.08424062281847,
+      "time_domain_crossfade": 0.08158096671104431
     }
   },
   "50": {
     "128": {
-      "faded_stepwise_update": 0.001258307951502502,
-      "frequency_domain_crossfade": 0.00011896084470208734,
-      "stepwise_update": 0.0015990165993571281,
-      "time_domain_crossfade": 0.00015381953562609851
+      "faded_stepwise_update": 0.12595921754837036,
+      "frequency_domain_crossfade": 0.12595677375793457,
+      "stepwise_update": 0.1259956657886505,
+      "time_domain_crossfade": 0.12595264613628387
     },
     "2048": {
-      "faded_stepwise_update": 0.004276326857507229,
-      "frequency_domain_crossfade": 0.0002470961771905422,
-      "stepwise_update": 0.002322543878108263,
-      "time_domain_crossfade": 0.00015211089339572936
+      "faded_stepwise_update": 0.014895336702466011,
+      "frequency_domain_crossfade": 0.011181164532899857,
+      "stepwise_update": 0.0209303330630064,
+      "time_domain_crossfade": 0.011136588640511036
     },
     "512": {
-      "faded_stepwise_update": 0.002214220119640231,
-      "frequency_domain_crossfade": 0.00014085987641010433,
-      "stepwise_update": 0.0018680564826354384,
-      "time_domain_crossfade": 0.00015386220184154809
+      "faded_stepwise_update": 0.07410778105258942,
+      "frequency_domain_crossfade": 0.0740620493888855,
+      "stepwise_update": 0.07476340234279633,
+      "time_domain_crossfade": 0.07394249737262726
     }
   }
 }
