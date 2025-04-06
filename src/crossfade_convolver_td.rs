@@ -29,11 +29,7 @@ impl<T: Convolution> CrossfadeConvolverTimeDomain<T> {
             core: CrossfadeConvolverTimeDomainCore {
                 convolver_a: convolver.clone(),
                 convolver_b: convolver,
-                crossfader: Crossfader::new(
-                    RaisedCosineMixer,
-                    crossfade_samples,
-                    max_buffer_size.min(max_response_length),
-                ),
+                crossfader: Crossfader::new(RaisedCosineMixer, crossfade_samples, 0),
             },
             buffer_a: vec![0.0; max_buffer_size],
             buffer_b: vec![0.0; max_buffer_size],
