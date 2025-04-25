@@ -16,10 +16,11 @@ const TRANSITION_SAMPLES: usize = 1048576 + 10 * BLOCK_SIZE;
 
 pub fn convolver_update_process_benchmarks(c: &mut Criterion) {
     let amplitude = 10.0;
+    let f_s = 48000.0;
 
     let sinusoid = |frequency: Sample, amplitude: Sample, length: usize| {
         (0..length)
-            .map(|i| amplitude * (frequency * 2.0 * PI as Sample * i as Sample).sin())
+            .map(|i| amplitude * (frequency / f_s * 2.0 * PI as Sample * i as Sample).sin())
             .collect::<Vec<Sample>>()
     };
 
