@@ -101,7 +101,7 @@ pub fn sum(result: &mut [f32], a: &[f32], b: &[f32]) {
 }
 #[derive(Default, Clone)]
 pub struct FFTConvolver {
-    ir_len: usize,
+    max_response_length: usize,
     block_size: usize,
     _seg_size: usize,
     seg_count: usize,
@@ -126,13 +126,13 @@ impl Convolution for FFTConvolver {
                 "max_response_length must be at least the length of the initial impulse response"
             );
         }
+        let ir_len = impulse_response.len();
         let mut padded_ir = impulse_response.to_vec();
         padded_ir.resize(max_response_length, 0.);
-        let ir_len = padded_ir.len();
 
         let block_size = block_size.next_power_of_two();
         let seg_size = 2 * block_size;
-        let seg_count = (ir_len as f64 / block_size as f64).ceil() as usize;
+        let seg_count = (max_response_length as f64 / block_size as f64).ceil() as usize;
         let active_seg_count = seg_count;
         let fft_complex_size = complex_size(seg_size);
 
@@ -148,7 +148,7 @@ impl Convolution for FFTConvolver {
         // prepare ir
         for i in 0..seg_count {
             let mut segment = vec![Complex::new(0., 0.); fft_complex_size];
-            let remaining = ir_len - (i * block_size);
+            let remaining = max_response_length - (i * block_size);
             let size_copy = if remaining >= block_size {
                 block_size
             } else {
@@ -172,7 +172,7 @@ impl Convolution for FFTConvolver {
         let current = 0;
 
         Self {
-            ir_len,
+            max_response_length,
             block_size,
             _seg_size: seg_size,
             seg_count,
@@ -194,11 +194,11 @@ impl Convolution for FFTConvolver {
     fn update(&mut self, response: &[Sample]) {
         let new_ir_len = response.len();
 
-        if new_ir_len > self.ir_len {
-            panic!("New impulse response is longer than initialized length");
+        if new_ir_len > self.max_response_length {
+            panic!("New impulse response is longer than max response length");
         }
 
-        if self.ir_len == 0 {
+        if self.max_response_length == 0 {
             return;
         }
 
