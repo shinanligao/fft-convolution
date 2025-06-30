@@ -133,7 +133,7 @@ impl Convolution for FFTConvolver {
         let block_size = block_size.next_power_of_two();
         let seg_size = 2 * block_size;
         let seg_count = (max_response_length as f64 / block_size as f64).ceil() as usize;
-        let active_seg_count = seg_count;
+        let active_seg_count = (ir_len as f64 / block_size as f64).ceil() as usize;
         let fft_complex_size = complex_size(seg_size);
 
         // FFT
