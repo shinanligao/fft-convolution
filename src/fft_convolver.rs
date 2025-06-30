@@ -265,7 +265,7 @@ impl Convolution for FFTConvolver {
                 self.pre_multiplied.fill(Complex { re: 0., im: 0. });
                 for i in 1..self.active_seg_count {
                     let index_ir = i;
-                    let index_audio = (self.current + i) % self.active_seg_count;
+                    let index_audio = (self.current + i) % self.seg_count;
                     complex_multiply_accumulate(
                         &mut self.pre_multiplied,
                         &self.segments_ir[index_ir],
@@ -307,7 +307,7 @@ impl Convolution for FFTConvolver {
                 self.current = if self.current > 0 {
                     self.current - 1
                 } else {
-                    self.active_seg_count - 1
+                    self.seg_count - 1
                 };
             }
             processed += processing;
